@@ -1,0 +1,13 @@
+name: synacor_challenge
+version: 0.1.0
+
+authors:
+  - Michael Wagner <mdwranger@gmail.com>
+
+targets:
+  synacor_challenge:
+    main: src/synacor_challenge.cr
+
+crystal: 1.2.2
+
+license: MIT
