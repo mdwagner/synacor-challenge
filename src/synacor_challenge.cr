@@ -10,6 +10,8 @@
 
 module SynacorChallenge
   class VM
+    MAX_U15 = (2 ** 15).to_u16
+
     # file: challenge.bin in read-only binary mode
     @io : IO
 
@@ -39,8 +41,69 @@ module SynacorChallenge
         @memory << IO::ByteFormat::LittleEndian.decode(UInt16, slice)
       end
 
-      pp! @memory[0..10]
-      pp! @memory.size
+      i = 0
+      while i < @memory.size
+        i = run_opcode(@memory[i], i)
+        # run_opcode(opcode: @memory[i], index: i) # index == opcode value
+
+        # TODO
+        # i = handle_opcode(i)
+        # i == opcode index, use @memory for access
+        # handle_opcode : next opcode index
+      end
+
+      #pp! @memory[0..10]
+      #pp! @memory.size
+    end
+
+    def run_opcode(opcode : UInt16, index : Int32) : Int32
+      # TODO: convert opcode to enum
+      case opcode
+      when 0_u16
+        puts "=== HALT ==="
+        exit
+      when 19_u16
+        puts "=== OUT ==="
+        next_index = index + 1
+        next_value = get_value(@memory[next_index])
+        get_string(next_value)
+        next_index
+      when 21_u16
+        puts "=== NOOP ==="
+        index + 1
+      else
+        puts opcode
+        index + 1
+      end
+    end
+
+    def get_value(value : UInt16) : UInt16
+      if value > 32775_u16
+        # invalid
+        puts "FAIL"
+        exit
+      end
+
+      n = (value % MAX_U15)
+      if n < 8
+        # reg
+        puts "CAME FROM REG #{n}"
+        @registers[n]
+      else
+        # normal
+        puts "NORMAL VALUE"
+        value
+      end
+    end
+
+    def get_string(value : UInt16)
+      pp! value.unsafe_chr
+      #slice = Bytes.new(2)
+      #IO::ByteFormat::LittleEndian.encode(value, slice)
+      #str = String.new(slice)
+      #pp! str.valid_encoding?
+      #pp! str.chars
+      #str
     end
   end
 end
