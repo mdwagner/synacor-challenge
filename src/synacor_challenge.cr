@@ -1,19 +1,17 @@
-struct UInt16
-  MAX_U15 = (2 ** 15).to_u16
-
-  def add_u15(other : UInt16)
-    ((self + other) % MAX_U15).to_u16
-  end
-
-  def mul_u15(other : UInt16)
-    ((self * other) % MAX_U15).to_u16
-  end
-end
+# struct UInt16
+# MAX_U15 = (2 ** 15).to_u16
+# def add_u15(other : UInt16)
+# ((self + other) % MAX_U15).to_u16
+# end
+# def mul_u15(other : UInt16)
+# ((self * other) % MAX_U15).to_u16
+# end
+# end
 
 module SynacorChallenge
   class VM
     # file: challenge.bin in read-only binary mode
-    @file : File
+    @io : IO
 
     # TODO: memory with 15-bit address space storing 16-bit values
     @memory = Array(UInt16).new(2 ** 15)
@@ -32,12 +30,12 @@ module SynacorChallenge
     # programs are loaded into memory starting at address 0
     # address 0 is the first 16-bit value, address 1 is the second 16-bit value, etc
 
-    def initialize(@file)
+    def initialize(@io)
     end
 
     def main
       slice = Bytes.new(2)
-      while @file.read_fully?(slice)
+      while @io.read_fully?(slice)
         @memory << IO::ByteFormat::LittleEndian.decode(UInt16, slice)
       end
 
@@ -45,8 +43,4 @@ module SynacorChallenge
       pp! @memory.size
     end
   end
-end
-
-File.open("#{__DIR__}/../instructions/challenge.bin", mode: "rb") do |f|
-  SynacorChallenge::VM.new(f).main
 end
