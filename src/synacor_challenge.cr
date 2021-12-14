@@ -1,17 +1,8 @@
-struct UInt16
-  MAX_U15 = (2 ** 15).to_u16
-
-  def add_u15(other : UInt16)
-    ((self + other) % MAX_U15).to_u16
-  end
-
-  def mul_u15(other : UInt16)
-    ((self * other) % MAX_U15).to_u16
-  end
-end
-
 module SynacorChallenge
   class VM
+    MAX_VALUE      = (2 ** 15).to_u16
+    REGISTER_RANGE = MAX_VALUE..(MAX_VALUE + 7)
+
     # bytes to read into memory (one-time use)
     @io : IO
 
@@ -54,7 +45,7 @@ module SynacorChallenge
 
       # exit safely
       0
-    rescue HaltProgramException
+    rescue HaltException
       # program halted
       -1
     end
@@ -68,113 +59,104 @@ module SynacorChallenge
     end
 
     def handle_opcode(index : Int32) : Int32
-      opcode = OpCode.from_value?(@memory[index])
-
-      if opcode.nil?
-        puts "<#{@memory[index]}>"
+      case OpCode.from_value?(@memory[index])
+      in nil
         index + 1
-      else
-        case opcode
-        in .halt_program?
-          raise HaltProgramException.new
-        in .set_value?
-          index + 3
-        in .push?
-          index + 2
-        in .pop_write?
-          index + 2
-        in .equal_to?
-          index + 4
-        in .greater_than?
-          index + 4
-        in .jump_to?
-          index + 2
-        in .jump_to_if_true?
-          index + 3
-        in .jump_to_if_false?
-          index + 3
-        in .add?
-          index + 4
-        in .mult?
-          index + 4
-        in .mod?
-          index + 4
-        in .bitwise_and?
-          index + 4
-        in .bitwise_or?
-          index + 4
-        in .bitwise_not?
-          index + 3
-        in .read_memory?
-          index + 3
-        in .write_memory?
-          index + 3
-        in .call?
-          index + 2
-        in .pop_return?
-          index + 1
-        in .std_out?
-          opcode_std_out(index)
-        in .std_in?
-          index + 2
-        in .noop?
-          opcode_noop(index)
-        end
+      in .halt?
+        raise HaltException.new
+      in .set?
+        index + 3
+      in .push?
+        index + 2
+      in .pop?
+        index + 2
+      in .eq?
+        index + 4
+      in .gt?
+        index + 4
+      in .jmp?
+        index + 2
+      in .jt?
+        index + 3
+      in .jf?
+        index + 3
+      in .add?
+        index + 4
+      in .mult?
+        index + 4
+      in .mod?
+        index + 4
+      in .and?
+        index + 4
+      in .or?
+        index + 4
+      in .not?
+        index + 3
+      in .rmem?
+        index + 3
+      in .wmem?
+        index + 3
+      in .call?
+        index + 2
+      in .ret?
+        index + 1
+      in .out?
+        opcode_out(index)
+      in .in?
+        index + 2
+      in .noop?
+        index + 1
       end
     end
 
-    private def get_value(value : UInt16) : UInt16
-      if value > 32775_u16
+    # Returns `value` or `@registers[value % MAX_VALUE]`.
+    #
+    # Raises `InvalidValueException` if *value* is over MAX_VALUE.
+    private def get_raw_value(value : UInt16) : UInt16
+      if value > MAX_VALUE
         raise InvalidValueException.new
-      end
-
-      n = (value % UInt16::MAX_U15)
-      if n < 8
-        @registers[n]
+      elsif REGISTER_RANGE.includes?(value)
+        @registers[value % MAX_VALUE]
       else
         value
       end
     end
 
-    private def opcode_std_out(index)
+    private def opcode_out(index)
       arg_pos = index + 1
-      value = get_value(@memory[arg_pos])
+      value = get_raw_value(@memory[arg_pos])
       @stdout << value.chr.to_s
 
       index + 2
     end
-
-    private def opcode_noop(index)
-      index + 1
-    end
   end
 
   enum OpCode : UInt16
-    HaltProgram
-    SetValue
+    Halt
+    Set
     Push
-    PopWrite
-    EqualTo
-    GreaterThan
-    JumpTo
-    JumpToIfTrue
-    JumpToIfFalse
+    Pop
+    Eq
+    Gt
+    Jmp
+    Jt
+    Jf
     Add
     Mult
     Mod
-    BitwiseAnd
-    BitwiseOr
-    BitwiseNot
-    ReadMemory
-    WriteMemory
+    And
+    Or
+    Not
+    Rmem
+    Wmem
     Call
-    PopReturn
-    StdOut
-    StdIn
+    Ret
+    Out
+    In
     Noop
   end
 
-  class HaltProgramException < Exception
+  class HaltException < Exception
   end
 
   class InvalidValueException < Exception
