@@ -1,27 +1,34 @@
-# struct UInt16
-# MAX_U15 = (2 ** 15).to_u16
-# def add_u15(other : UInt16)
-# ((self + other) % MAX_U15).to_u16
-# end
-# def mul_u15(other : UInt16)
-# ((self * other) % MAX_U15).to_u16
-# end
-# end
+struct UInt16
+  MAX_U15 = (2 ** 15).to_u16
+
+  def add_u15(other : UInt16)
+    ((self + other) % MAX_U15).to_u16
+  end
+
+  def mul_u15(other : UInt16)
+    ((self * other) % MAX_U15).to_u16
+  end
+end
 
 module SynacorChallenge
   class VM
-    MAX_U15 = (2 ** 15).to_u16
-
-    # file: challenge.bin in read-only binary mode
+    # bytes to read into memory (one-time use)
     @io : IO
 
-    # TODO: memory with 15-bit address space storing 16-bit values
+    # STDOUT IO redirect (testing)
+    @stdout : IO
+    # STDIN IO redirect (testing)
+    @stdin : IO
+    # STDERR IO redirect (testing)
+    @stderr : IO
+
+    # NOTE memory with 15-bit address space storing 16-bit values
     @memory = Array(UInt16).new(2 ** 15)
 
-    # TODO: eight registers
+    # NOTE eight registers
     @registers = uninitialized UInt16[8]
 
-    # TODO: unbounded stack which holds individual 16-bit values
+    # NOTE unbounded stack which holds individual 16-bit values
     @stack = Array(UInt16).new
 
     # binary format
@@ -32,78 +39,144 @@ module SynacorChallenge
     # programs are loaded into memory starting at address 0
     # address 0 is the first 16-bit value, address 1 is the second 16-bit value, etc
 
-    def initialize(@io)
+    def initialize(@io, @stdout = STDOUT, @stdin = STDIN, @stderr = STDERR)
     end
 
-    def main
+    def main : Int32
+      # load program into @memory
+      load_io
+
+      # start program
+      index = 0
+      while index < @memory.size
+        index = handle_opcode(index)
+      end
+
+      # exit safely
+      0
+    rescue HaltProgramException
+      # program halted
+      -1
+    end
+
+    def load_io : Nil
       slice = Bytes.new(2)
-      while @io.read_fully?(slice)
+      while (bytes_read = @io.read(slice)) != 0
+        break if bytes_read != 2
         @memory << IO::ByteFormat::LittleEndian.decode(UInt16, slice)
       end
-
-      i = 0
-      while i < @memory.size
-        i = run_opcode(@memory[i], i)
-        # run_opcode(opcode: @memory[i], index: i) # index == opcode value
-
-        # TODO
-        # i = handle_opcode(i)
-        # i == opcode index, use @memory for access
-        # handle_opcode : next opcode index
-      end
-
-      #pp! @memory[0..10]
-      #pp! @memory.size
     end
 
-    def run_opcode(opcode : UInt16, index : Int32) : Int32
-      # TODO: convert opcode to enum
-      case opcode
-      when 0_u16
-        puts "=== HALT ==="
-        exit
-      when 19_u16
-        puts "=== OUT ==="
-        next_index = index + 1
-        next_value = get_value(@memory[next_index])
-        get_string(next_value)
-        next_index
-      when 21_u16
-        puts "=== NOOP ==="
+    def handle_opcode(index : Int32) : Int32
+      opcode = OpCode.from_value?(@memory[index])
+
+      if opcode.nil?
+        puts "<#{@memory[index]}>"
         index + 1
       else
-        puts opcode
-        index + 1
+        case opcode
+        in .halt_program?
+          raise HaltProgramException.new
+        in .set_value?
+          index + 3
+        in .push?
+          index + 2
+        in .pop_write?
+          index + 2
+        in .equal_to?
+          index + 4
+        in .greater_than?
+          index + 4
+        in .jump_to?
+          index + 2
+        in .jump_to_if_true?
+          index + 3
+        in .jump_to_if_false?
+          index + 3
+        in .add?
+          index + 4
+        in .mult?
+          index + 4
+        in .mod?
+          index + 4
+        in .bitwise_and?
+          index + 4
+        in .bitwise_or?
+          index + 4
+        in .bitwise_not?
+          index + 3
+        in .read_memory?
+          index + 3
+        in .write_memory?
+          index + 3
+        in .call?
+          index + 2
+        in .pop_return?
+          index + 1
+        in .std_out?
+          opcode_std_out(index)
+        in .std_in?
+          index + 2
+        in .noop?
+          opcode_noop(index)
+        end
       end
     end
 
-    def get_value(value : UInt16) : UInt16
+    private def get_value(value : UInt16) : UInt16
       if value > 32775_u16
-        # invalid
-        puts "FAIL"
-        exit
+        raise InvalidValueException.new
       end
 
-      n = (value % MAX_U15)
+      n = (value % UInt16::MAX_U15)
       if n < 8
-        # reg
-        puts "CAME FROM REG #{n}"
         @registers[n]
       else
-        # normal
-        puts "NORMAL VALUE"
         value
       end
     end
 
-    def get_string(value : UInt16)
-      pp! value.unsafe_chr
-      #slice = Bytes.new(2)
-      #IO::ByteFormat::LittleEndian.encode(value, slice)
-      #str = String.new(slice)
-      #pp! str.valid_encoding?
-      #pp! str.chars
-      #str
+    private def opcode_std_out(index)
+      arg_pos = index + 1
+      value = get_value(@memory[arg_pos])
+      @stdout << value.chr.to_s
+
+      index + 2
     end
+
+    private def opcode_noop(index)
+      index + 1
+    end
+  end
+
+  enum OpCode : UInt16
+    HaltProgram
+    SetValue
+    Push
+    PopWrite
+    EqualTo
+    GreaterThan
+    JumpTo
+    JumpToIfTrue
+    JumpToIfFalse
+    Add
+    Mult
+    Mod
+    BitwiseAnd
+    BitwiseOr
+    BitwiseNot
+    ReadMemory
+    WriteMemory
+    Call
+    PopReturn
+    StdOut
+    StdIn
+    Noop
+  end
+
+  class HaltProgramException < Exception
+  end
+
+  class InvalidValueException < Exception
   end
 end
