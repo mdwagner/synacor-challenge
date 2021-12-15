@@ -81,5 +81,22 @@ Spectator.describe SynacorChallenge::VM do
         expect(stdout.rewind.to_s).to eq("i")
       end
     end
+
+    describe "set" do
+      subject do
+        io = IO::Memory.new
+        register_zero = 2 ** 15
+        [OpCode::Set, register_zero, 106, OpCode::Noop, OpCode::Out, register_zero].each do |n|
+          io.write_bytes(n.to_u16, IO::ByteFormat::LittleEndian)
+        end
+        io.rewind
+      end
+      let(stdout) { IO::Memory.new }
+
+      it "should set register 0 to 'j' value and write 'j' to stdout" do
+        described_class.new(subject, stdout: stdout).main
+        expect(stdout.rewind.to_s).to eq("j")
+      end
+    end
   end
 end

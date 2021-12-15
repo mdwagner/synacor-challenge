@@ -57,7 +57,7 @@ module SynacorChallenge
       in .halt?
         raise HaltException.new
       in .set?
-        index + 3
+        opcode_set(index)
       in .push?
         index + 2
       in .pop?
@@ -112,6 +112,26 @@ module SynacorChallenge
       else
         value
       end
+    end
+
+    private def get_register(value : UInt16) : Int32
+      if REGISTER_RANGE.includes?(value)
+        (value % MAX_VALUE).to_i32
+      else
+        raise InvalidValueException.new
+      end
+    end
+
+    private def opcode_set(index)
+      arg1_pos = index + 1
+      arg2_pos = index + 2
+
+      register = get_register(@memory[arg1_pos])
+      value = get_raw_value(@memory[arg2_pos])
+
+      @registers[register] = value
+
+      index + 3
     end
 
     private def opcode_jmp(index)
