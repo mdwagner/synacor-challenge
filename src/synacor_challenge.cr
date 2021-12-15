@@ -3,9 +3,6 @@ module SynacorChallenge
     MAX_VALUE      = (2 ** 15).to_u16
     REGISTER_RANGE = MAX_VALUE..(MAX_VALUE + 7)
 
-    # bytes to read into memory (one-time use)
-    @io : IO
-
     # STDOUT IO redirect (testing)
     @stdout : IO
     # STDIN IO redirect (testing)
@@ -30,13 +27,15 @@ module SynacorChallenge
     # programs are loaded into memory starting at address 0
     # address 0 is the first 16-bit value, address 1 is the second 16-bit value, etc
 
-    def initialize(@io, @stdout = STDOUT, @stdin = STDIN, @stderr = STDERR)
+    def initialize(io : IO, @stdout = STDOUT, @stdin = STDIN, @stderr = STDERR)
+      slice = Bytes.new(2)
+      while (bytes_read = io.read(slice)) != 0
+        break if bytes_read != 2
+        @memory << IO::ByteFormat::LittleEndian.decode(UInt16, slice)
+      end
     end
 
     def main : Int32
-      # load program into @memory
-      load_io
-
       # start program
       index = 0
       while index < @memory.size
@@ -50,16 +49,8 @@ module SynacorChallenge
       -1
     end
 
-    def load_io : Nil
-      slice = Bytes.new(2)
-      while (bytes_read = @io.read(slice)) != 0
-        break if bytes_read != 2
-        @memory << IO::ByteFormat::LittleEndian.decode(UInt16, slice)
-      end
-    end
-
     def handle_opcode(index : Int32) : Int32
-      case OpCode.from_value?(@memory[index])
+      case (opcode = OpCode.from_value?(@memory[index]))
       in nil
         index + 1
       in .halt?
@@ -75,7 +66,7 @@ module SynacorChallenge
       in .gt?
         index + 4
       in .jmp?
-        index + 2
+        opcode_jmp(index)
       in .jt?
         index + 3
       in .jf?
@@ -122,11 +113,16 @@ module SynacorChallenge
       end
     end
 
+    private def opcode_jmp(index)
+      arg_pos = index + 1
+      jmp_index = get_raw_value(@memory[arg_pos])
+      jmp_index.to_i32
+    end
+
     private def opcode_out(index)
       arg_pos = index + 1
       value = get_raw_value(@memory[arg_pos])
       @stdout << value.chr.to_s
-
       index + 2
     end
   end

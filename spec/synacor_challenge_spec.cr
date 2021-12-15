@@ -28,5 +28,21 @@ Spectator.describe SynacorChallenge::VM do
         expect(stdout.rewind.to_s).to eq("e")
       end
     end
+
+    describe "jmp" do
+      subject do
+        io = IO::Memory.new
+        [6, 5, 21, 19, 102, 19, 103].each do |n|
+          io.write_bytes(n.to_u16, IO::ByteFormat::LittleEndian)
+        end
+        io.rewind
+      end
+      let(stdout) { IO::Memory.new }
+
+      it "should jump to write 'g' to stdout" do
+        described_class.new(subject, stdout: stdout).main
+        expect(stdout.rewind.to_s).to eq("g")
+      end
+    end
   end
 end
