@@ -1,7 +1,8 @@
 module SynacorChallenge
   class VM
     MAX_VALUE      = (2 ** 15).to_u16
-    REGISTER_RANGE = MAX_VALUE..(MAX_VALUE + 7)
+    INVALID_VALUE = MAX_VALUE + 7
+    REGISTER_RANGE = MAX_VALUE..INVALID_VALUE
 
     # STDOUT IO redirect (testing)
     @stdout : IO
@@ -68,9 +69,9 @@ module SynacorChallenge
       in .jmp?
         opcode_jmp(index)
       in .jt?
-        index + 3
+        opcode_jt(index)
       in .jf?
-        index + 3
+        opcode_jf(index)
       in .add?
         index + 4
       in .mult?
@@ -102,9 +103,9 @@ module SynacorChallenge
 
     # Returns `value` or `@registers[value % MAX_VALUE]`.
     #
-    # Raises `InvalidValueException` if *value* is over MAX_VALUE.
+    # Raises `InvalidValueException` if *value* is over INVALID_VALUE.
     private def get_raw_value(value : UInt16) : UInt16
-      if value > MAX_VALUE
+      if value > INVALID_VALUE
         raise InvalidValueException.new
       elsif REGISTER_RANGE.includes?(value)
         @registers[value % MAX_VALUE]
@@ -117,6 +118,34 @@ module SynacorChallenge
       arg_pos = index + 1
       jmp_index = get_raw_value(@memory[arg_pos])
       jmp_index.to_i32
+    end
+
+    private def opcode_jt(index)
+      arg1_pos = index + 1
+      arg2_pos = index + 2
+
+      arg1_value = get_raw_value(@memory[arg1_pos])
+
+      if arg1_value != 0_u16
+        jmp_index = get_raw_value(@memory[arg2_pos])
+        jmp_index.to_i32
+      else
+        index + 3
+      end
+    end
+
+    private def opcode_jf(index)
+      arg1_pos = index + 1
+      arg2_pos = index + 2
+
+      arg1_value = get_raw_value(@memory[arg1_pos])
+
+      if arg1_value == 0_u16
+        jmp_index = get_raw_value(@memory[arg2_pos])
+        jmp_index.to_i32
+      else
+        index + 3
+      end
     end
 
     private def opcode_out(index)
@@ -150,6 +179,10 @@ module SynacorChallenge
     Out
     In
     Noop
+
+    def to_u16
+      self.value.to_u16
+    end
   end
 
   class HaltException < Exception
