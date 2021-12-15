@@ -66,7 +66,7 @@ module SynacorChallenge
       in .pop?
         index + 2
       in .eq?
-        index + 4
+        opcode_eq(index)
       in .gt?
         index + 4
       in .jmp?
@@ -76,7 +76,7 @@ module SynacorChallenge
       in .jf?
         opcode_jf(index)
       in .add?
-        index + 4
+        opcode_add(index)
       in .mult?
         index + 4
       in .mod?
@@ -169,6 +169,40 @@ module SynacorChallenge
       else
         index + 3
       end
+    end
+
+    private def opcode_add(index)
+      arg1_pos = index + 1
+      arg2_pos = index + 2
+      arg3_pos = index + 3
+
+      register = get_register(@memory[arg1_pos])
+      value_a = get_raw_value(@memory[arg2_pos])
+      value_b = get_raw_value(@memory[arg3_pos])
+
+      value = (value_a + value_b) % MAX_VALUE
+
+      @registers[register] = value
+
+      index + 4
+    end
+
+    private def opcode_eq(index)
+      arg1_pos = index + 1
+      arg2_pos = index + 2
+      arg3_pos = index + 3
+
+      register = get_register(@memory[arg1_pos])
+      value_a = get_raw_value(@memory[arg2_pos])
+      value_b = get_raw_value(@memory[arg3_pos])
+
+      if value_a == value_b
+        @registers[register] = 1_u16
+      else
+        @registers[register] = 0_u16
+      end
+
+      index + 4
     end
 
     private def opcode_out(index)
