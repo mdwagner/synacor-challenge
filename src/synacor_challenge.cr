@@ -1,8 +1,8 @@
 module SynacorChallenge
   class VM
     MAX_VALUE      = (2 ** 15).to_u16
-    INVALID_VALUE = MAX_VALUE + 7
-    REGISTER_RANGE = MAX_VALUE..INVALID_VALUE
+    INVALID_VALUE = MAX_VALUE + 8
+    REGISTER_RANGE = MAX_VALUE...INVALID_VALUE
 
     # STDOUT IO redirect (testing)
     @stdout : IO
@@ -36,18 +36,21 @@ module SynacorChallenge
       end
     end
 
-    def main : Int32
+    def main : VMStatus
       # start program
       index = 0
       while index < @memory.size
         index = handle_opcode(index)
       end
 
-      # exit safely
-      0
+      VMStatus::Ok
     rescue HaltException
-      # program halted
-      -1
+      VMStatus::Halt
+    rescue InvalidValueException
+      VMStatus::InvalidValue
+    rescue err
+      err.inspect_with_backtrace(@stderr)
+      VMStatus::Error
     end
 
     def handle_opcode(index : Int32) : Int32
@@ -105,7 +108,7 @@ module SynacorChallenge
     #
     # Raises `InvalidValueException` if *value* is over INVALID_VALUE.
     private def get_raw_value(value : UInt16) : UInt16
-      if value > INVALID_VALUE
+      if value >= INVALID_VALUE
         raise InvalidValueException.new
       elsif REGISTER_RANGE.includes?(value)
         @registers[value % MAX_VALUE]
@@ -203,6 +206,13 @@ module SynacorChallenge
     def to_u16
       self.value.to_u16
     end
+  end
+
+  enum VMStatus
+    Ok
+    Error
+    Halt
+    InvalidValue
   end
 
   class HaltException < Exception
