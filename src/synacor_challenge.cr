@@ -237,7 +237,6 @@ module SynacorChallenge
       vm.pos += 4
     end
 
-    # TODO: FIX
     def op_mult(vm)
       arg1, arg2, arg3 = vm.get_args_pos(3)
 
@@ -245,12 +244,21 @@ module SynacorChallenge
       a = vm.get_raw_value(vm.memory[arg2])
       b = vm.get_raw_value(vm.memory[arg3])
 
-      vm.register[reg] = (a * b) % MAX_VALUE
+      value = (a.to_u64 * b.to_u64) % MAX_VALUE.to_u64
+      vm.register[reg] = value.to_u16
 
       vm.pos += 4
     end
 
     def op_mod(vm)
+      arg1, arg2, arg3 = vm.get_args_pos(3)
+
+      reg = vm.get_register(vm.memory[arg1])
+      a = vm.get_raw_value(vm.memory[arg2])
+      b = vm.get_raw_value(vm.memory[arg3])
+
+      vm.register[reg] = a % b
+
       vm.pos += 4
     end
 
@@ -278,7 +286,6 @@ module SynacorChallenge
       vm.pos += 4
     end
 
-    # TODO: need to test this more, not sure if working correctly
     def op_not(vm)
       arg1, arg2 = vm.get_args_pos(2)
 
@@ -291,10 +298,26 @@ module SynacorChallenge
     end
 
     def op_rmem(vm)
+      arg1, arg2 = vm.get_args_pos(2)
+
+      reg = vm.get_register(vm.memory[arg1])
+      address = vm.get_raw_value(vm.memory[arg2])
+
+      value = vm.memory[address]
+
+      vm.register[reg] = value
+
       vm.pos += 3
     end
 
     def op_wmem(vm)
+      arg1, arg2 = vm.get_args_pos(2)
+
+      address = vm.get_raw_value(vm.memory[arg1])
+      value = vm.get_raw_value(vm.memory[arg2])
+
+      vm.memory[address] = value
+
       vm.pos += 3
     end
 
