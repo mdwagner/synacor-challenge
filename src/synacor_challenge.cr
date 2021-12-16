@@ -144,10 +144,26 @@ module SynacorChallenge
     end
 
     def op_push(vm)
+      arg = vm.get_args_pos(1).first
+
+      value = vm.get_raw_value(vm.memory[arg])
+
+      vm.stack << value
+
       vm.pos += 2
     end
 
     def op_pop(vm)
+      if (value = vm.stack.pop?)
+        arg = vm.get_args_pos(1).first
+
+        reg = vm.get_register(vm.memory[arg])
+
+        vm.register[reg] = value
+      else
+        raise StackEmptyException.new
+      end
+
       vm.pos += 2
     end
 
@@ -158,12 +174,28 @@ module SynacorChallenge
       a = vm.get_raw_value(vm.memory[arg2])
       b = vm.get_raw_value(vm.memory[arg3])
 
-      vm.register[reg] = a == b ? 1_u16 : 0_u16
+      if a == b
+        vm.register[reg] = 1_u16
+      else
+        vm.register[reg] = 0_u16
+      end
 
       vm.pos += 4
     end
 
     def op_gt(vm)
+      arg1, arg2, arg3 = vm.get_args_pos(3)
+
+      reg = vm.get_register(vm.memory[arg1])
+      a = vm.get_raw_value(vm.memory[arg2])
+      b = vm.get_raw_value(vm.memory[arg3])
+
+      if a > b
+        vm.register[reg] = 1_u16
+      else
+        vm.register[reg] = 0_u16
+      end
+
       vm.pos += 4
     end
 
@@ -234,11 +266,19 @@ module SynacorChallenge
     end
 
     def op_call(vm)
-      vm.pos += 2
+      arg, next_pos = vm.get_args_pos(2)
+
+      vm.stack << next_pos.to_u16
+
+      vm.pos = vm.get_raw_value(vm.memory[arg]).to_i32
     end
 
     def op_ret(vm)
-      vm.pos += 1
+      if (value = vm.stack.pop?)
+        vm.pos = value.to_i32
+      else
+        raise HaltException.new
+      end
     end
 
     def op_out(vm)
@@ -271,5 +311,8 @@ module SynacorChallenge
   end
 
   class InvalidValueException < Exception
+  end
+
+  class StackEmptyException < Exception
   end
 end
