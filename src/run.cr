@@ -1,5 +1,5 @@
 require "./synacor_challenge"
 
 File.open("#{__DIR__}/../instructions/challenge.bin", mode: "rb") do |f|
-  SynacorChallenge::VM.new(f).main
+  SynacorChallenge::SynacorVM.new(f).main
 end

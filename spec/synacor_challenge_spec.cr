@@ -1,11 +1,11 @@
 require "./spec_helper"
 
-Spectator.describe SynacorChallenge::VM do
+Spectator.describe SynacorChallenge::SynacorVM do
   alias LittleEndian = IO::ByteFormat::LittleEndian
   alias OpCode = SynacorChallenge::OpCode
-  alias VMStatus = SynacorChallenge::VMStatus
+  alias Status = SynacorChallenge::Status
 
-  MAX_VALUE = SynacorChallenge::VM::MAX_VALUE
+  MAX_VALUE = SynacorChallenge::MAX_VALUE
 
   context "op codes" do
     let(stdout) { IO::Memory.new }
@@ -20,7 +20,7 @@ Spectator.describe SynacorChallenge::VM do
       end
 
       it "should terminate program" do
-        expect(described_class.new(subject).main).to eq(VMStatus::Halt)
+        expect(described_class.new(subject).main).to eq(Status::Halt)
       end
     end
 
@@ -97,6 +97,38 @@ Spectator.describe SynacorChallenge::VM do
       it "should set register 0 to 'j' value and write 'j' to stdout" do
         described_class.new(subject, stdout: stdout).main
         expect(stdout.rewind.to_s).to eq("j")
+      end
+    end
+
+    describe "eq" do
+      subject do
+        io = IO::Memory.new
+        register_zero = MAX_VALUE
+        [OpCode::Eq, register_zero, 4, 4, OpCode::Noop, OpCode::Out, register_zero].each do |n|
+          io.write_bytes(n.to_u16, LittleEndian)
+        end
+        io.rewind
+      end
+
+      it "should set register 0 to 1 value and write to stdout" do
+        described_class.new(subject, stdout: stdout).main
+        expect(stdout.rewind.to_s).to eq(1.chr.to_s)
+      end
+    end
+
+    describe "add" do
+      subject do
+        io = IO::Memory.new
+        register_zero = MAX_VALUE
+        [OpCode::Add, register_zero, 4, 8, OpCode::Noop, OpCode::Out, register_zero].each do |n|
+          io.write_bytes(n.to_u16, LittleEndian)
+        end
+        io.rewind
+      end
+
+      it "should set register 0 to 12 value and write to stdout" do
+        described_class.new(subject, stdout: stdout).main
+        expect(stdout.rewind.to_s).to eq(12.chr.to_s)
       end
     end
   end

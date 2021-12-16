@@ -1,24 +1,26 @@
-module SynacorChallenge
-  class VM
-    MAX_VALUE      = (2 ** 15).to_u16
-    INVALID_VALUE = MAX_VALUE + 8
-    REGISTER_RANGE = MAX_VALUE...INVALID_VALUE
+require "./vm"
 
+module SynacorChallenge
+  MAX_VALUE     = (2 ** 15).to_u16
+  INVALID_VALUE = MAX_VALUE + 8
+  REGISTERS     = MAX_VALUE...INVALID_VALUE
+
+  class SynacorVM < VM
     # STDOUT IO redirect (testing)
-    @stdout : IO
+    property stdout : IO
     # STDIN IO redirect (testing)
-    @stdin : IO
+    property stdin : IO
     # STDERR IO redirect (testing)
-    @stderr : IO
+    property stderr : IO
 
     # NOTE memory with 15-bit address space storing 16-bit values
-    @memory = Array(UInt16).new(2 ** 15)
+    getter memory : Array(UInt16)
 
     # NOTE eight registers
-    @registers = uninitialized UInt16[8]
+    getter register : StaticArray(UInt16, 8)
 
     # NOTE unbounded stack which holds individual 16-bit values
-    @stack = Array(UInt16).new
+    getter stack : Array(UInt16)
 
     # binary format
     # each number is stored as a 16-bit little-endian pair (low byte, high byte)
@@ -29,6 +31,10 @@ module SynacorChallenge
     # address 0 is the first 16-bit value, address 1 is the second 16-bit value, etc
 
     def initialize(io : IO, @stdout = STDOUT, @stdin = STDIN, @stderr = STDERR)
+      @memory = Array(UInt16).new(2 ** 15)
+      @register = StaticArray(UInt16, 8).new(0)
+      @stack = Array(UInt16).new
+
       slice = Bytes.new(2)
       while (bytes_read = io.read(slice)) != 0
         break if bytes_read != 2
@@ -36,180 +42,49 @@ module SynacorChallenge
       end
     end
 
-    def main : VMStatus
-      # start program
-      index = 0
-      while index < @memory.size
-        index = handle_opcode(index)
+    def main : Status
+      run do
+        if (op = OpCode.from_value?(current_value))
+          op.execute(self)
+        else
+          @pos += 1
+        end
       end
 
-      VMStatus::Ok
+      Status::Ok
     rescue HaltException
-      VMStatus::Halt
+      Status::Halt
     rescue InvalidValueException
-      VMStatus::InvalidValue
+      Status::InvalidValue
     rescue err
-      err.inspect_with_backtrace(@stderr)
-      VMStatus::Error
+      err.inspect_with_backtrace(stderr)
+      Status::Error
     end
 
-    def handle_opcode(index : Int32) : Int32
-      case (opcode = OpCode.from_value?(@memory[index]))
-      in nil
-        index + 1
-      in .halt?
-        raise HaltException.new
-      in .set?
-        opcode_set(index)
-      in .push?
-        index + 2
-      in .pop?
-        index + 2
-      in .eq?
-        opcode_eq(index)
-      in .gt?
-        index + 4
-      in .jmp?
-        opcode_jmp(index)
-      in .jt?
-        opcode_jt(index)
-      in .jf?
-        opcode_jf(index)
-      in .add?
-        opcode_add(index)
-      in .mult?
-        index + 4
-      in .mod?
-        index + 4
-      in .and?
-        index + 4
-      in .or?
-        index + 4
-      in .not?
-        index + 3
-      in .rmem?
-        index + 3
-      in .wmem?
-        index + 3
-      in .call?
-        index + 2
-      in .ret?
-        index + 1
-      in .out?
-        opcode_out(index)
-      in .in?
-        index + 2
-      in .noop?
-        index + 1
-      end
-    end
-
-    # Returns `value` or `@registers[value % MAX_VALUE]`.
-    #
-    # Raises `InvalidValueException` if *value* is over INVALID_VALUE.
-    private def get_raw_value(value : UInt16) : UInt16
+    def get_raw_value(value : UInt16) : UInt16
       if value >= INVALID_VALUE
         raise InvalidValueException.new
-      elsif REGISTER_RANGE.includes?(value)
-        @registers[value % MAX_VALUE]
+      elsif REGISTERS.includes?(value)
+        register[value % MAX_VALUE]
       else
         value
       end
     end
 
-    private def get_register(value : UInt16) : Int32
-      if REGISTER_RANGE.includes?(value)
+    def get_register(value : UInt16) : Int32
+      if REGISTERS.includes?(value)
         (value % MAX_VALUE).to_i32
       else
         raise InvalidValueException.new
       end
     end
 
-    private def opcode_set(index)
-      arg1_pos = index + 1
-      arg2_pos = index + 2
-
-      register = get_register(@memory[arg1_pos])
-      value = get_raw_value(@memory[arg2_pos])
-
-      @registers[register] = value
-
-      index + 3
-    end
-
-    private def opcode_jmp(index)
-      arg_pos = index + 1
-      jmp_index = get_raw_value(@memory[arg_pos])
-      jmp_index.to_i32
-    end
-
-    private def opcode_jt(index)
-      arg1_pos = index + 1
-      arg2_pos = index + 2
-
-      arg1_value = get_raw_value(@memory[arg1_pos])
-
-      if arg1_value != 0_u16
-        jmp_index = get_raw_value(@memory[arg2_pos])
-        jmp_index.to_i32
-      else
-        index + 3
+    def get_args_pos(arg_count : Int32) : Array(Int32)
+      args = [] of Int32
+      arg_count.times do |n|
+        args << @pos + (n + 1)
       end
-    end
-
-    private def opcode_jf(index)
-      arg1_pos = index + 1
-      arg2_pos = index + 2
-
-      arg1_value = get_raw_value(@memory[arg1_pos])
-
-      if arg1_value == 0_u16
-        jmp_index = get_raw_value(@memory[arg2_pos])
-        jmp_index.to_i32
-      else
-        index + 3
-      end
-    end
-
-    private def opcode_add(index)
-      arg1_pos = index + 1
-      arg2_pos = index + 2
-      arg3_pos = index + 3
-
-      register = get_register(@memory[arg1_pos])
-      value_a = get_raw_value(@memory[arg2_pos])
-      value_b = get_raw_value(@memory[arg3_pos])
-
-      value = (value_a + value_b) % MAX_VALUE
-
-      @registers[register] = value
-
-      index + 4
-    end
-
-    private def opcode_eq(index)
-      arg1_pos = index + 1
-      arg2_pos = index + 2
-      arg3_pos = index + 3
-
-      register = get_register(@memory[arg1_pos])
-      value_a = get_raw_value(@memory[arg2_pos])
-      value_b = get_raw_value(@memory[arg3_pos])
-
-      if value_a == value_b
-        @registers[register] = 1_u16
-      else
-        @registers[register] = 0_u16
-      end
-
-      index + 4
-    end
-
-    private def opcode_out(index)
-      arg_pos = index + 1
-      value = get_raw_value(@memory[arg_pos])
-      @stdout << value.chr.to_s
-      index + 2
+      args
     end
   end
 
@@ -240,9 +115,152 @@ module SynacorChallenge
     def to_u16
       self.value.to_u16
     end
+
+    def execute(vm : VM) : Nil
+      {% begin %}
+      {% methods = @type.constants.map(&.downcase.underscore) %}
+        case self
+      {% for m in methods %}
+        in .{{m.id}}?
+          op_{{m.id}}(vm)
+      {% end %}
+        end
+      {% end %}
+    end
+
+    def op_halt(vm)
+      raise HaltException.new
+    end
+
+    def op_set(vm)
+      arg1, arg2 = vm.get_args_pos(2)
+
+      reg = vm.get_register(vm.memory[arg1])
+      value = vm.get_raw_value(vm.memory[arg2])
+
+      vm.register[reg] = value
+
+      vm.pos += 3
+    end
+
+    def op_push(vm)
+      vm.pos += 2
+    end
+
+    def op_pop(vm)
+      vm.pos += 2
+    end
+
+    def op_eq(vm)
+      arg1, arg2, arg3 = vm.get_args_pos(3)
+
+      reg = vm.get_register(vm.memory[arg1])
+      a = vm.get_raw_value(vm.memory[arg2])
+      b = vm.get_raw_value(vm.memory[arg3])
+
+      vm.register[reg] = a == b ? 1_u16 : 0_u16
+
+      vm.pos += 4
+    end
+
+    def op_gt(vm)
+      vm.pos += 4
+    end
+
+    def op_jmp(vm)
+      arg = vm.get_args_pos(1).first
+
+      vm.pos = vm.get_raw_value(vm.memory[arg]).to_i32
+    end
+
+    def op_jt(vm)
+      arg1, arg2 = vm.get_args_pos(2)
+
+      if vm.get_raw_value(vm.memory[arg1]) != 0_u16
+        vm.pos = vm.get_raw_value(vm.memory[arg2]).to_i32
+      else
+        vm.pos += 3
+      end
+    end
+
+    def op_jf(vm)
+      arg1, arg2 = vm.get_args_pos(2)
+
+      if vm.get_raw_value(vm.memory[arg1]) == 0_u16
+        vm.pos = vm.get_raw_value(vm.memory[arg2]).to_i32
+      else
+        vm.pos += 3
+      end
+    end
+
+    def op_add(vm)
+      arg1, arg2, arg3 = vm.get_args_pos(3)
+
+      reg = vm.get_register(vm.memory[arg1])
+      a = vm.get_raw_value(vm.memory[arg2])
+      b = vm.get_raw_value(vm.memory[arg3])
+
+      vm.register[reg] = (a + b) % MAX_VALUE
+
+      vm.pos += 4
+    end
+
+    def op_mult(vm)
+      vm.pos += 4
+    end
+
+    def op_mod(vm)
+      vm.pos += 4
+    end
+
+    def op_and(vm)
+      vm.pos += 4
+    end
+
+    def op_or(vm)
+      vm.pos += 4
+    end
+
+    def op_not(vm)
+      vm.pos += 3
+    end
+
+    def op_rmem(vm)
+      vm.pos += 3
+    end
+
+    def op_wmem(vm)
+      vm.pos += 3
+    end
+
+    def op_call(vm)
+      vm.pos += 2
+    end
+
+    def op_ret(vm)
+      vm.pos += 1
+    end
+
+    def op_out(vm)
+      arg = vm.get_args_pos(1).first
+
+      value = vm.get_raw_value(vm.memory[arg])
+
+      vm.stdout << value.chr.to_s
+
+      vm.pos += 2
+    end
+
+    def op_in(vm)
+      vm.pos += 2
+    end
+
+    def op_noop(vm)
+      vm.pos += 1
+    end
   end
 
-  enum VMStatus
+  enum Status
     Ok
     Error
     Halt
