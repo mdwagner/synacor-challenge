@@ -237,7 +237,16 @@ module SynacorChallenge
       vm.pos += 4
     end
 
+    # TODO: FIX
     def op_mult(vm)
+      arg1, arg2, arg3 = vm.get_args_pos(3)
+
+      reg = vm.get_register(vm.memory[arg1])
+      a = vm.get_raw_value(vm.memory[arg2])
+      b = vm.get_raw_value(vm.memory[arg3])
+
+      vm.register[reg] = (a * b) % MAX_VALUE
+
       vm.pos += 4
     end
 
@@ -246,14 +255,38 @@ module SynacorChallenge
     end
 
     def op_and(vm)
+      arg1, arg2, arg3 = vm.get_args_pos(3)
+
+      reg = vm.get_register(vm.memory[arg1])
+      a = vm.get_raw_value(vm.memory[arg2])
+      b = vm.get_raw_value(vm.memory[arg3])
+
+      vm.register[reg] = a & b
+
       vm.pos += 4
     end
 
     def op_or(vm)
+      arg1, arg2, arg3 = vm.get_args_pos(3)
+
+      reg = vm.get_register(vm.memory[arg1])
+      a = vm.get_raw_value(vm.memory[arg2])
+      b = vm.get_raw_value(vm.memory[arg3])
+
+      vm.register[reg] = a | b
+
       vm.pos += 4
     end
 
+    # TODO: need to test this more, not sure if working correctly
     def op_not(vm)
+      arg1, arg2 = vm.get_args_pos(2)
+
+      reg = vm.get_register(vm.memory[arg1])
+      value = vm.get_raw_value(vm.memory[arg2])
+
+      vm.register[reg] = (MAX_VALUE - 1) - value
+
       vm.pos += 3
     end
 
