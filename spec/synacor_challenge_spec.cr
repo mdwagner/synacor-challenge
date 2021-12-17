@@ -300,38 +300,66 @@ Spectator.describe SynacorVM do
     describe "Not <a, b>" do
       subject { OpCode::Not }
 
-      it "should store into <a> the 15-bit bitwise inverse of <b>", :skip do
+      it "should store into <a> the 15-bit bitwise inverse of <b>" do
+        register = REGISTERS.first
+        [subject, register, 1].each do |n|
+          io.write_bytes(n.to_u16, LittleEndian)
+        end
+        io.rewind
+
+        instance = described_class.new(io)
+        instance.main
+        reg = instance.get_register(register)
+        expect(instance.register[reg]).to eq(32766_u16)
       end
     end
 
     describe "Rmem <a, b>" do
       subject { OpCode::Rmem }
 
-      it "should read memory address <b> and write into <a>", :skip do
+      it "should read memory address <b> and write into <a>" do
+        register = REGISTERS.first
+        [subject, register, 2].each do |n|
+          io.write_bytes(n.to_u16, LittleEndian)
+        end
+        io.rewind
+
+        instance = described_class.new(io)
+        instance.main
+        reg = instance.get_register(register)
+        expect(instance.register[reg]).to eq(2_u16)
       end
     end
 
     describe "Wmem <a, b>" do
       subject { OpCode::Wmem }
 
-      it "should write value from <b> into memory at address <a>", :skip do
+      it "should write value from <b> into memory at address <a>" do
+        [subject, 1, 2].each do |n|
+          io.write_bytes(n.to_u16, LittleEndian)
+        end
+        io.rewind
+
+        instance = described_class.new(io)
+        instance.main
+        expect(instance.memory[1]).to eq(2_u16)
       end
     end
 
     describe "Call <a>" do
       subject { OpCode::Call }
 
-      it "should write address of next instruction to stack and jump to <a>", :skip do
+      it "should write address of next instruction to stack and jump to <a>", pending: "Needs integration testing" do
       end
     end
 
     describe "Ret <>" do
       subject { OpCode::Ret }
 
-      it "should remove top element from stack and jump to it", :skip do
+      it "should remove top element from stack and jump to it", pending: "Needs integration testing" do
       end
 
-      it "should halt when removing top element from stack", :skip do
+      it "should halt when removing top element from stack", pending: "Needs integration testing" do
       end
     end
 
@@ -354,7 +382,7 @@ Spectator.describe SynacorVM do
     describe "In <a>" do
       subject { OpCode::In }
 
-      it "should read char from stdin and write ascii code to <a>", :skip do
+      it "should read char from stdin and write ascii code to <a>", pending: "Not implemented yet" do
       end
     end
 
