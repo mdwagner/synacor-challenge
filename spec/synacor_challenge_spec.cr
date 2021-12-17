@@ -1,134 +1,261 @@
 require "./spec_helper"
 
-Spectator.describe SynacorChallenge::SynacorVM do
-  alias LittleEndian = IO::ByteFormat::LittleEndian
-  alias OpCode = SynacorChallenge::OpCode
-  alias Status = SynacorChallenge::Status
+alias LittleEndian = IO::ByteFormat::LittleEndian
+alias SynacorVM = SynacorChallenge::SynacorVM
+alias OpCode = SynacorChallenge::OpCode
+alias Status = SynacorChallenge::Status
+alias StackEmptyException = SynacorChallenge::StackEmptyException
 
-  MAX_VALUE = SynacorChallenge::MAX_VALUE
+Spectator.describe SynacorVM do
+  REGISTERS = SynacorChallenge::REGISTERS
 
-  context "op codes" do
+  context "OpCode" do
+    let(io) { IO::Memory.new }
     let(stdout) { IO::Memory.new }
+    let(stderr) { IO::Memory.new }
 
-    describe "halt" do
-      subject do
-        io = IO::Memory.new
+    describe "Halt <>" do
+      it "should terminate program" do
         [OpCode::Halt].each do |n|
           io.write_bytes(n.to_u16, LittleEndian)
         end
         io.rewind
-      end
 
-      it "should terminate program" do
-        expect(described_class.new(subject).main).to eq(Status::Halt)
+        expect(described_class.new(io).main).to eq(Status::Halt)
       end
     end
 
-    describe "out" do
-      subject do
-        io = IO::Memory.new
-        [OpCode::Out, 'e'.ord].each do |n|
+    describe "Set <a, b>" do
+      it "should set register <a> to value of <b>" do
+        register = REGISTERS.first
+        value = 101
+        [OpCode::Set, register, value].each do |n|
           io.write_bytes(n.to_u16, LittleEndian)
         end
         io.rewind
-      end
 
-      it "should write 'e' to stdout" do
-        described_class.new(subject, stdout: stdout).main
-        expect(stdout.rewind.to_s).to eq("e")
+        instance = described_class.new(io)
+        instance.main
+        reg = instance.get_register(register)
+        expect(instance.register[reg]).to eq(value.to_u16)
       end
     end
 
-    describe "jmp" do
-      subject do
-        io = IO::Memory.new
-        [OpCode::Jmp, 5, OpCode::Noop, OpCode::Out, 'f'.ord, OpCode::Out, 'g'.ord].each do |n|
+    describe "Push <a>" do
+      it "should push <a> onto stack" do
+        value = 4
+        [OpCode::Push, value].each do |n|
           io.write_bytes(n.to_u16, LittleEndian)
         end
         io.rewind
-      end
 
-      it "should jump to write 'g' to stdout" do
-        described_class.new(subject, stdout: stdout).main
-        expect(stdout.rewind.to_s).to eq("g")
+        instance = described_class.new(io)
+        instance.main
+        expect(instance.stack.first).to eq(value.to_u16)
       end
     end
 
-    describe "jt" do
-      subject do
-        io = IO::Memory.new
-        [OpCode::Jt, 1, 6, OpCode::Noop, OpCode::Out, 'f'.ord, OpCode::Out, 'h'.ord].each do |n|
+    describe "Pop <a>" do
+      it "should remove top element from stack and write it to <a>" do
+        register = REGISTERS.first
+        [OpCode::Pop, register].each do |n|
           io.write_bytes(n.to_u16, LittleEndian)
         end
         io.rewind
+        top_element = 8_u16
+
+        instance = described_class.new(io)
+        instance.stack << top_element
+        instance.main
+        reg = instance.get_register(register)
+        expect(instance.register[reg]).to eq(top_element.to_u16)
+        expect(instance.stack.size).to eq(0)
       end
 
-      it "should jump to write 'h' to stdout since 1 is non-zero" do
-        described_class.new(subject, stdout: stdout).main
-        expect(stdout.rewind.to_s).to eq("h")
+      it "should error when removing top element from empty stack" do
+        register = REGISTERS.first
+        [OpCode::Pop, register].each do |n|
+          io.write_bytes(n.to_u16, LittleEndian)
+        end
+        io.rewind
+
+        expect(described_class.new(io, stderr: stderr).main).to eq(Status::Error)
+        expect(stderr.rewind.to_s).to contain(StackEmptyException.name)
       end
     end
 
-    describe "jf" do
-      subject do
-        io = IO::Memory.new
-        [OpCode::Jf, 0, 6, OpCode::Noop, OpCode::Out, 'f'.ord, OpCode::Out, 'i'.ord].each do |n|
+    describe "Eq <a, b, c>" do
+      it "should set <a> to 1 when <b> == <c>" do
+        register = REGISTERS.first
+        [OpCode::Eq, register, 4, 4].each do |n|
           io.write_bytes(n.to_u16, LittleEndian)
         end
         io.rewind
+
+        instance = described_class.new(io)
+        instance.main
+        reg = instance.get_register(register)
+        expect(instance.register[reg]).to eq(1_u16)
       end
 
-      it "should jump to write 'i' to stdout since 0 is zero" do
-        described_class.new(subject, stdout: stdout).main
-        expect(stdout.rewind.to_s).to eq("i")
+      it "should set <a> to 0 when <b> != <c>" do
+        register = REGISTERS.first
+        [OpCode::Eq, register, 4, 5].each do |n|
+          io.write_bytes(n.to_u16, LittleEndian)
+        end
+        io.rewind
+
+        instance = described_class.new(io)
+        instance.main
+        reg = instance.get_register(register)
+        expect(instance.register[reg]).to eq(0_u16)
       end
     end
 
-    describe "set" do
-      subject do
-        io = IO::Memory.new
-        register_zero = MAX_VALUE
-        [OpCode::Set, register_zero, 'j'.ord, OpCode::Noop, OpCode::Out, register_zero].each do |n|
+    describe "Gt <a, b, c>" do
+      it "should set <a> to 1 when <b> > <c>" do
+        register = REGISTERS.first
+        [OpCode::Gt, register, 5, 4].each do |n|
           io.write_bytes(n.to_u16, LittleEndian)
         end
         io.rewind
+
+        instance = described_class.new(io)
+        instance.main
+        reg = instance.get_register(register)
+        expect(instance.register[reg]).to eq(1_u16)
       end
 
-      it "should set register 0 to 'j' value and write 'j' to stdout" do
-        described_class.new(subject, stdout: stdout).main
-        expect(stdout.rewind.to_s).to eq("j")
+      it "should set <a> to 0 when <b> < <c>" do
+        register = REGISTERS.first
+        [OpCode::Gt, register, 4, 5].each do |n|
+          io.write_bytes(n.to_u16, LittleEndian)
+        end
+        io.rewind
+
+        instance = described_class.new(io)
+        instance.main
+        reg = instance.get_register(register)
+        expect(instance.register[reg]).to eq(0_u16)
       end
     end
 
-    describe "eq" do
-      subject do
-        io = IO::Memory.new
-        register_zero = MAX_VALUE
-        [OpCode::Eq, register_zero, 4, 4, OpCode::Noop, OpCode::Out, register_zero].each do |n|
-          io.write_bytes(n.to_u16, LittleEndian)
-        end
-        io.rewind
-      end
-
-      it "should set register 0 to 1 value and write to stdout" do
-        described_class.new(subject, stdout: stdout).main
-        expect(stdout.rewind.to_s).to eq(1.chr.to_s)
+    describe "Jmp <a>" do
+      it "should jump to <a>", pending: "Needs integration testing" do
       end
     end
 
-    describe "add" do
-      subject do
-        io = IO::Memory.new
-        register_zero = MAX_VALUE
-        [OpCode::Add, register_zero, 4, 8, OpCode::Noop, OpCode::Out, register_zero].each do |n|
+    describe "Jt <a, b>" do
+      it "should jump to <b> when <a> != 0", pending: "Needs integration testing" do
+      end
+    end
+
+    describe "Jf <a, b>" do
+      it "should jump to <b> when <a> == 0", pending: "Needs integration testing" do
+      end
+    end
+
+    describe "Add <a, b, c>" do
+      it "should assign into <a> the sum of <b> and <c>" do
+        register = REGISTERS.first
+        [OpCode::Add, register, 4, 8].each do |n|
           io.write_bytes(n.to_u16, LittleEndian)
         end
         io.rewind
+
+        instance = described_class.new(io)
+        instance.main
+        reg = instance.get_register(register)
+        expect(instance.register[reg]).to eq(12_u16)
       end
 
-      it "should set register 0 to 12 value and write to stdout" do
-        described_class.new(subject, stdout: stdout).main
-        expect(stdout.rewind.to_s).to eq(12.chr.to_s)
+      it "should assign into <a> the sum of <b> and <c> (modulo 32768)" do
+        register = REGISTERS.first
+        [OpCode::Add, register, 12345, 31214].each do |n|
+          io.write_bytes(n.to_u16, LittleEndian)
+        end
+        io.rewind
+
+        instance = described_class.new(io)
+        instance.main
+        reg = instance.get_register(register)
+        expect(instance.register[reg]).to eq(10791_u16)
+      end
+    end
+
+    describe "Mult <a, b, c>" do
+      it "should store into <a> the product of <b> and <c>", :skip do
+      end
+
+      it "should store into <a> the product of <b> and <c> (modulo 32768)", :skip do
+      end
+    end
+
+    describe "Mod <a, b, c>" do
+      it "should store into <a> the remainder of <b> divided by <c>", :skip do
+      end
+    end
+
+    describe "And <a, b, c>" do
+      it "should store into <a> the bitwise and of <b> divided by <c>", :skip do
+      end
+    end
+
+    describe "Or <a, b, c>" do
+      it "should store into <a> the bitwise or of <b> divided by <c>", :skip do
+      end
+    end
+
+    describe "Not <a, b>" do
+      it "should store into <a> the 15-bit bitwise inverse of <b>", :skip do
+      end
+    end
+
+    describe "Rmem <a, b>" do
+      it "should read memory address <b> and write into <a>", :skip do
+      end
+    end
+
+    describe "Wmem <a, b>" do
+      it "should write value from <b> into memory at address <a>", :skip do
+      end
+    end
+
+    describe "Call <a>" do
+      it "should write address of next instruction to stack and jump to <a>", :skip do
+      end
+    end
+
+    describe "Ret <>" do
+      it "should remove top element from stack and jump to it", :skip do
+      end
+
+      it "should halt when removing top element from stack", :skip do
+      end
+    end
+
+    describe "Out <a>" do
+      it "should write char of ascii code <a> to stdout" do
+        char = 'e'
+        [OpCode::Out, char.ord].each do |n|
+          io.write_bytes(n.to_u16, LittleEndian)
+        end
+        io.rewind
+
+        instance = described_class.new(io, stdout: stdout)
+        instance.main
+        expect(stdout.rewind.to_s).to eq(char.to_s)
+      end
+    end
+
+    describe "In <a>" do
+      it "should read char from stdin and write ascii code to <a>", :skip do
+      end
+    end
+
+    describe "Noop <>" do
+      it "should do nothing" do
+        expect(described_class.new(io).main).to eq(Status::Ok)
       end
     end
   end
