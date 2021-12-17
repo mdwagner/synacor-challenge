@@ -12,6 +12,7 @@ Spectator.describe SynacorVM do
   context "OpCode" do
     let(io) { IO::Memory.new }
     let(stdout) { IO::Memory.new }
+    let(stdin) { IO::Memory.new }
     let(stderr) { IO::Memory.new }
 
     describe "Halt <>" do
@@ -382,7 +383,21 @@ Spectator.describe SynacorVM do
     describe "In <a>" do
       subject { OpCode::In }
 
-      it "should read char from stdin and write ascii code to <a>", pending: "Not implemented yet" do
+      it "should read char from stdin and write ascii code to <a>" do
+        char = 'e'
+        stdin << char.to_s
+        stdin.rewind
+
+        register = REGISTERS.first
+        [subject, register].each do |n|
+          io.write_bytes(n.to_u16, LittleEndian)
+        end
+        io.rewind
+
+        instance = described_class.new(io, stdin: stdin)
+        instance.main
+        reg = instance.get_register(register)
+        expect(instance.register[reg]).to eq(char.ord.to_u16)
       end
     end
 

@@ -348,6 +348,12 @@ module SynacorChallenge
     end
 
     def op_in(vm)
+      arg = vm.get_args_pos(1).first
+
+      reg = vm.get_register(vm.memory[arg])
+
+      vm.register[reg] = vm.stdin.gets(1).not_nil!.chars[0].ord.to_u16
+
       vm.pos += 2
     end
 
