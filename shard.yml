@@ -6,7 +6,7 @@ authors:
 
 targets:
   synacor_challenge:
-    main: src/synacor_challenge.cr
+    main: src/run.cr
 
 crystal: 1.2.2
 
