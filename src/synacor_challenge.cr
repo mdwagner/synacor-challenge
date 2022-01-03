@@ -30,6 +30,10 @@ module SynacorChallenge
     # programs are loaded into memory starting at address 0
     # address 0 is the first 16-bit value, address 1 is the second 16-bit value, etc
 
+    # TODO:
+    # impl save/load
+    # check permutations: _ + _ * _^2 + _^3 - _ = 399
+
     def initialize(io : IO, @stdout = STDOUT, @stdin = STDIN, @stderr = STDERR)
       @memory = Array(UInt16).new(2 ** 15)
       @register = StaticArray(UInt16, 8).new(0)
@@ -44,7 +48,7 @@ module SynacorChallenge
 
     def main : Status
       run do
-        if (op = OpCode.from_value?(current_value))
+        if op = OpCode.from_value?(current_value)
           op.execute(self)
         else
           @pos += 1
