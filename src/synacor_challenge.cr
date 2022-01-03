@@ -22,6 +22,8 @@ module SynacorChallenge
     # NOTE unbounded stack which holds individual 16-bit values
     getter stack : Array(UInt16)
 
+    property save_file = Deque(Char).new
+
     # binary format
     # each number is stored as a 16-bit little-endian pair (low byte, high byte)
     # numbers 0..32767 mean a literal value
@@ -31,7 +33,6 @@ module SynacorChallenge
     # address 0 is the first 16-bit value, address 1 is the second 16-bit value, etc
 
     # TODO:
-    # impl save/load
     # check permutations: _ + _ * _^2 + _^3 - _ = 399
 
     def initialize(io : IO, @stdout = STDOUT, @stdin = STDIN, @stderr = STDERR)
@@ -356,7 +357,15 @@ module SynacorChallenge
 
       reg = vm.get_register(vm.memory[arg])
 
-      vm.register[reg] = vm.stdin.gets(1).not_nil!.chars[0].ord.to_u16
+      if chr = vm.save_file.shift?
+        vm.register[reg] = chr.ord.to_u16
+      else
+        vm.stdin.gets(1).try do |str|
+          if chr = str.chars[0]?
+            vm.register[reg] = chr.ord.to_u16
+          end
+        end
+      end
 
       vm.pos += 2
     end
