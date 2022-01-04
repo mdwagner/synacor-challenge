@@ -66,13 +66,16 @@ SynacorChallenge.solve_coin_problem({
   "concave"  => 7,
   "corroded" => 3,
 }).each do |coin|
-  save_file.concat "use #{coin} coin\n".chars
+  save_file.concat "use #{coin} coin".chars
+  save_file << '\n'
 end
 
 save_file.concat <<-INPUT.chars
 north
 take teleporter
 use teleporter
+take business card
+take strange book
 INPUT
 save_file << '\n'
 
