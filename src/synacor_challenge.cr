@@ -32,9 +32,6 @@ module SynacorChallenge
     # programs are loaded into memory starting at address 0
     # address 0 is the first 16-bit value, address 1 is the second 16-bit value, etc
 
-    # TODO:
-    # check permutations: _ + _ * _^2 + _^3 - _ = 399
-
     def initialize(io : IO, @stdout = STDOUT, @stdin = STDIN, @stderr = STDERR)
       @memory = Array(UInt16).new(2 ** 15)
       @register = StaticArray(UInt16, 8).new(0)
@@ -373,6 +370,24 @@ module SynacorChallenge
     def op_noop(vm)
       vm.pos += 1
     end
+  end
+
+  def self.solve_coin_problem(coin_mapping : Hash(String, Int32)) : Array(String)
+    raise "Too many coins" if coin_mapping.size != 5
+
+    solution = [] of Int32
+
+    coin_mapping.values.permutations.each do |values|
+      a, b, c, d, e = values
+      if a + b * (c ** 2) + (d ** 3) - e == 399
+        solution = values
+        break
+      end
+    end
+
+    raise "No solution found" if solution.empty?
+
+    solution.map { |value| coin_mapping.key_for(value) }
   end
 
   enum Status

@@ -59,6 +59,23 @@ west
 INPUT
 save_file << '\n'
 
+SynacorChallenge.solve_coin_problem({
+  "red"      => 2,
+  "blue"     => 9,
+  "shiny"    => 5,
+  "concave"  => 7,
+  "corroded" => 3,
+}).each do |coin|
+  save_file.concat "use #{coin} coin\n".chars
+end
+
+save_file.concat <<-INPUT.chars
+north
+take teleporter
+use teleporter
+INPUT
+save_file << '\n'
+
 File.open("#{__DIR__}/../instructions/challenge.bin", mode: "rb") do |f|
   vm = SynacorChallenge::SynacorVM.new(f)
   vm.save_file = save_file if use_save
