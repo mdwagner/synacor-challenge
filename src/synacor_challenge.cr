@@ -357,9 +357,13 @@ module SynacorChallenge
       if chr = vm.save_file.shift?
         vm.register[reg] = chr.ord.to_u16
       else
-        vm.stdin.gets(1).try do |str|
-          if chr = str.chars[0]?
-            vm.register[reg] = chr.ord.to_u16
+        vm.stdin.gets(chomp: false).try do |command|
+          if command.starts_with?('$')
+            puts "hello world!"
+            vm.register[reg] = '\n'.ord.to_u16
+          else
+            vm.save_file.concat command.chars
+            return op_in(vm)
           end
         end
       end
