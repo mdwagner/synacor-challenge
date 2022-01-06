@@ -357,15 +357,44 @@ module SynacorChallenge
       if chr = vm.save_file.shift?
         vm.register[reg] = chr.ord.to_u16
       else
-        vm.stdin.gets(chomp: false).try do |command|
-          if command.starts_with?('$')
-            puts "hello world!"
-            vm.register[reg] = '\n'.ord.to_u16
+        vm.stdin.gets(chomp: false).try do |input|
+          if input.starts_with?("$debug")
+            # DEBUG MODE
+            # starts "repl" until $exit is called
+            #   $r{0,7} = print value of reg <value>
+            #   $s = print stack
+            #   $m = print last 10 and future 10 memory addresses
+            puts "Started DEBUG Mode"
+            debug = true
+            while debug
+              vm.stdin.gets.try do |cmd|
+                if cmd == "$exit"
+                  debug = false
+                  break
+                end
+
+                if match = cmd.match(/\$r(\d+)/)
+                  matched_reg = match[1].to_i
+                  next unless (0..7).includes?(matched_reg)
+                  puts "REGISTER #{matched_reg} => #{vm.register[matched_reg]}"
+                elsif cmd == "$r"
+                  puts "REGISTERS => #{vm.register}"
+                elsif cmd == "$s"
+                  puts "STACK => #{vm.stack}"
+                elsif cmd == "$m"
+                  puts "MEMORY => #{vm.memory[(vm.pos - 10)..(vm.pos + 10)]}"
+                else
+                  puts "Unrecognized command"
+                end
+              end
+            end
+            puts "Left DEBUG Mode"
           else
-            vm.save_file.concat command.chars
+            vm.save_file.concat input.chars
             return op_in(vm)
           end
         end
+        vm.register[reg] = '\n'.ord.to_u16
       end
 
       vm.pos += 2
