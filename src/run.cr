@@ -81,6 +81,6 @@ save_file << '\n'
 
 File.open("#{__DIR__}/../instructions/challenge.bin", mode: "rb") do |f|
   vm = SynacorChallenge::SynacorVM.new(f)
-  vm.save_file = save_file if use_save
+  vm.input_buffer = save_file if use_save
   vm.main
 end

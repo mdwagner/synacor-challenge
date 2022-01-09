@@ -1,10 +1,11 @@
 require "./spec_helper"
 
-alias LittleEndian = IO::ByteFormat::LittleEndian
-alias SynacorVM = SynacorChallenge::SynacorVM
-alias OpCode = SynacorChallenge::OpCode
-alias Status = SynacorChallenge::Status
-alias StackEmptyException = SynacorChallenge::StackEmptyException
+alias LittleEndian          = IO::ByteFormat::LittleEndian
+alias SynacorVM             = SynacorChallenge::SynacorVM
+alias OpCode                = SynacorChallenge::OpCode
+alias HaltException         = SynacorChallenge::HaltException
+alias InvalidValueException = SynacorChallenge::InvalidValueException
+alias StackEmptyException   = SynacorChallenge::StackEmptyException
 
 Spectator.describe SynacorVM do
   REGISTERS = SynacorChallenge::REGISTERS
@@ -13,7 +14,6 @@ Spectator.describe SynacorVM do
     let(io) { IO::Memory.new }
     let(stdout) { IO::Memory.new }
     let(stdin) { IO::Memory.new }
-    let(stderr) { IO::Memory.new }
 
     describe "Halt <>" do
       subject { OpCode::Halt }
@@ -24,7 +24,7 @@ Spectator.describe SynacorVM do
         end
         io.rewind
 
-        expect(described_class.new(io).main).to eq(Status::Halt)
+        expect { described_class.new(io).main }.to raise_error(HaltException)
       end
     end
 
@@ -42,7 +42,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(value.to_u16)
+        expect(instance.registers[reg]).to eq(value.to_u16)
       end
     end
 
@@ -77,7 +77,7 @@ Spectator.describe SynacorVM do
         instance.stack << top_element
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(top_element.to_u16)
+        expect(instance.registers[reg]).to eq(top_element.to_u16)
         expect(instance.stack.size).to eq(0)
       end
 
@@ -88,8 +88,7 @@ Spectator.describe SynacorVM do
         end
         io.rewind
 
-        expect(described_class.new(io, stderr: stderr).main).to eq(Status::Error)
-        expect(stderr.rewind.to_s).to contain(StackEmptyException.name)
+        expect { described_class.new(io).main }.to raise_error(StackEmptyException)
       end
     end
 
@@ -106,7 +105,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(1_u16)
+        expect(instance.registers[reg]).to eq(1_u16)
       end
 
       it "should set <a> to 0 when <b> != <c>" do
@@ -119,7 +118,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(0_u16)
+        expect(instance.registers[reg]).to eq(0_u16)
       end
     end
 
@@ -136,7 +135,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(1_u16)
+        expect(instance.registers[reg]).to eq(1_u16)
       end
 
       it "should set <a> to 0 when <b> < <c>" do
@@ -149,7 +148,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(0_u16)
+        expect(instance.registers[reg]).to eq(0_u16)
       end
     end
 
@@ -187,7 +186,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(12_u16)
+        expect(instance.registers[reg]).to eq(12_u16)
       end
 
       it "should assign into <a> the sum of <b> and <c> (modulo 32768)" do
@@ -200,7 +199,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(10791_u16)
+        expect(instance.registers[reg]).to eq(10791_u16)
       end
     end
 
@@ -217,7 +216,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(25_u16)
+        expect(instance.registers[reg]).to eq(25_u16)
       end
 
       it "should store into <a> the product of <b> and <c> (modulo 32768)" do
@@ -230,7 +229,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(17918_u16)
+        expect(instance.registers[reg]).to eq(17918_u16)
       end
     end
 
@@ -247,7 +246,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(6_u16)
+        expect(instance.registers[reg]).to eq(6_u16)
       end
     end
 
@@ -264,7 +263,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(2_u16)
+        expect(instance.registers[reg]).to eq(2_u16)
       end
 
       it "should store into <a> the bitwise and of <b> divided by <c> when <b> != <c>" do
@@ -277,7 +276,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(0_u16)
+        expect(instance.registers[reg]).to eq(0_u16)
       end
     end
 
@@ -294,7 +293,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(1_u16)
+        expect(instance.registers[reg]).to eq(1_u16)
       end
     end
 
@@ -311,7 +310,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(32766_u16)
+        expect(instance.registers[reg]).to eq(32766_u16)
       end
     end
 
@@ -328,7 +327,7 @@ Spectator.describe SynacorVM do
         instance = described_class.new(io)
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(2_u16)
+        expect(instance.registers[reg]).to eq(2_u16)
       end
     end
 
@@ -374,7 +373,8 @@ Spectator.describe SynacorVM do
         end
         io.rewind
 
-        instance = described_class.new(io, stdout: stdout)
+        instance = described_class.new(io)
+        instance.stdout = stdout
         instance.main
         expect(stdout.rewind.to_s).to eq(char.to_s)
       end
@@ -394,10 +394,11 @@ Spectator.describe SynacorVM do
         end
         io.rewind
 
-        instance = described_class.new(io, stdin: stdin)
+        instance = described_class.new(io)
+        instance.stdin = stdin
         instance.main
         reg = instance.get_register(register)
-        expect(instance.register[reg]).to eq(char.ord.to_u16)
+        expect(instance.registers[reg]).to eq(char.ord.to_u16)
       end
     end
 
@@ -410,7 +411,7 @@ Spectator.describe SynacorVM do
         end
         io.rewind
 
-        expect(described_class.new(io).main).to eq(Status::Ok)
+        expect { described_class.new(io).main }.not_to raise_error
       end
     end
   end
