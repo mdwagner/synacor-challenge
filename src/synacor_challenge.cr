@@ -77,9 +77,9 @@ module SynacorChallenge
     private def execute_opcode(opcode : OpCode)
       {% begin %}
         case opcode
-      {% for x in OpCode.constants.map(&.downcase.underscore) %}
-        in .{{x.id}}?
-          op_{{x.id}}
+      {% for op_name in OpCode.constants.map(&.downcase.underscore) %}
+        in .{{op_name.id}}?
+          op_{{op_name.id}}
       {% end %}
         end
       {% end %}
