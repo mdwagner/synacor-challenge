@@ -1,3 +1,5 @@
+require "./synacor_challenge/*"
+
 module SynacorChallenge
   MAX_VALUE     = (2 ** 15).to_u16
   INVALID_VALUE = MAX_VALUE + 8
@@ -11,14 +13,16 @@ module SynacorChallenge
   # programs are loaded into memory starting at address 0
   # address 0 is the first 16-bit value, address 1 is the second 16-bit value, etc
   class SynacorVM
+    include VM
+
     # memory with 15-bit address space storing 16-bit values
-    getter memory = Array(UInt16).new(2 ** 15)
+    getter memory : Array(UInt16) = Array(UInt16).new(2 ** 15)
 
     # eight registers
-    getter registers = StaticArray(UInt16, 8).new(0)
+    getter registers : StaticArray(UInt16, 8) = StaticArray(UInt16, 8).new(0)
 
     # unbounded stack which holds individual 16-bit values
-    getter stack = Array(UInt16).new
+    getter stack : Array(UInt16) = Array(UInt16).new
 
     # program counter
     @pc = 0
@@ -28,6 +32,8 @@ module SynacorChallenge
     property stdin : IO = STDIN
 
     property stdout : IO = STDOUT
+
+    property stderr : IO = STDERR
 
     def initialize(io : IO)
       slice = Bytes.new(2)

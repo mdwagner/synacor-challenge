@@ -1,5 +1,5 @@
 require "option_parser"
-require "./synacor_challenge"
+require "../src/synacor_challenge"
 
 use_save = false
 

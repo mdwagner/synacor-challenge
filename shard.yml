@@ -6,13 +6,13 @@ authors:
 
 targets:
   synacor_challenge:
-    main: src/run.cr
+    main: src/synacor_challenge.cr
 
-crystal: 1.2.2
+crystal: 1.4.1
 
 license: MIT
 
 development_dependencies:
   spectator:
     gitlab: arctic-fox/spectator
-    version: ~> 0.10.3
+    version: ~> 0.10.5
