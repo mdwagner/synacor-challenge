@@ -1,10 +1,6 @@
 require "./synacor_challenge/*"
 
 module SynacorChallenge
-  MAX_VALUE     = (2 ** 15).to_u16
-  INVALID_VALUE = MAX_VALUE + 8
-  REGISTERS     = MAX_VALUE...INVALID_VALUE
-
   # binary format
   # each number is stored as a 16-bit little-endian pair (low byte, high byte)
   # numbers 0..32767 mean a literal value
@@ -386,39 +382,4 @@ module SynacorChallenge
 
     solution.map { |value| coin_mapping.key_for(value) }
   end
-
-  enum OpCode : UInt16
-    Halt
-    Set
-    Push
-    Pop
-    Eq
-    Gt
-    Jmp
-    Jt
-    Jf
-    Add
-    Mult
-    Mod
-    And
-    Or
-    Not
-    Rmem
-    Wmem
-    Call
-    Ret
-    Out
-    In
-    Noop
-
-    def to_u16
-      self.value.to_u16
-    end
-  end
-
-  class HaltException < Exception; end
-
-  class InvalidValueException < Exception; end
-
-  class StackEmptyException < Exception; end
 end
