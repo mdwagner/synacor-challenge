@@ -68,12 +68,28 @@ module SynacorChallenge
       end
     end
 
-    private def get_args_pc_values(arg_count : Int32) : Array(Int32)
+    private def get_args_pc_values(arg_count : Int32)
       args = [] of Int32
       arg_count.times do |n|
         args << @pc + (n + 1)
       end
       args
+    end
+
+    private def get_one_arg
+      Tuple(Int32).from(get_args_pc_values(1)).first
+    end
+
+    private def get_two_args
+      Tuple(Int32, Int32).from(get_args_pc_values(2))
+    end
+
+    private def get_three_args
+      Tuple(Int32, Int32, Int32).from(get_args_pc_values(3))
+    end
+
+    private def get_four_args
+      Tuple(Int32, Int32, Int32, Int32).from(get_args_pc_values(4))
     end
 
     private def execute_opcode(opcode : OpCode)
@@ -92,7 +108,7 @@ module SynacorChallenge
     end
 
     private def op_set
-      arg1, arg2 = get_args_pc_values(2)
+      arg1, arg2 = get_two_args
 
       reg = get_register(@memory[arg1])
       value = get_raw_value(@memory[arg2])
@@ -103,7 +119,7 @@ module SynacorChallenge
     end
 
     private def op_push
-      arg1 = get_args_pc_values(1).first
+      arg1 = get_one_arg
 
       value = get_raw_value(@memory[arg1])
 
@@ -114,7 +130,7 @@ module SynacorChallenge
 
     private def op_pop
       if value = @stack.pop?
-        arg1 = get_args_pc_values(1).first
+        arg1 = get_one_arg
 
         reg = get_register(@memory[arg1])
 
@@ -127,7 +143,7 @@ module SynacorChallenge
     end
 
     private def op_eq
-      arg1, arg2, arg3 = get_args_pc_values(3)
+      arg1, arg2, arg3 = get_three_args
 
       reg = get_register(@memory[arg1])
       a = get_raw_value(@memory[arg2])
@@ -143,7 +159,7 @@ module SynacorChallenge
     end
 
     private def op_gt
-      arg1, arg2, arg3 = get_args_pc_values(3)
+      arg1, arg2, arg3 = get_three_args
 
       reg = get_register(@memory[arg1])
       a = get_raw_value(@memory[arg2])
@@ -159,13 +175,13 @@ module SynacorChallenge
     end
 
     private def op_jmp
-      arg1 = get_args_pc_values(1).first
+      arg1 = get_one_arg
 
       @pc = get_raw_value(@memory[arg1]).to_i32
     end
 
     private def op_jt
-      arg1, arg2 = get_args_pc_values(2)
+      arg1, arg2 = get_two_args
 
       if get_raw_value(@memory[arg1]) != 0_u16
         @pc = get_raw_value(@memory[arg2]).to_i32
@@ -175,7 +191,7 @@ module SynacorChallenge
     end
 
     private def op_jf
-      arg1, arg2 = get_args_pc_values(2)
+      arg1, arg2 = get_two_args
 
       if get_raw_value(@memory[arg1]) == 0_u16
         @pc = get_raw_value(@memory[arg2]).to_i32
@@ -185,7 +201,7 @@ module SynacorChallenge
     end
 
     private def op_add
-      arg1, arg2, arg3 = get_args_pc_values(3)
+      arg1, arg2, arg3 = get_three_args
 
       reg = get_register(@memory[arg1])
       a = get_raw_value(@memory[arg2])
@@ -197,7 +213,7 @@ module SynacorChallenge
     end
 
     private def op_mult
-      arg1, arg2, arg3 = get_args_pc_values(3)
+      arg1, arg2, arg3 = get_three_args
 
       reg = get_register(@memory[arg1])
       a = get_raw_value(@memory[arg2])
@@ -210,7 +226,7 @@ module SynacorChallenge
     end
 
     private def op_mod
-      arg1, arg2, arg3 = get_args_pc_values(3)
+      arg1, arg2, arg3 = get_three_args
 
       reg = get_register(@memory[arg1])
       a = get_raw_value(@memory[arg2])
@@ -222,7 +238,7 @@ module SynacorChallenge
     end
 
     private def op_and
-      arg1, arg2, arg3 = get_args_pc_values(3)
+      arg1, arg2, arg3 = get_three_args
 
       reg = get_register(@memory[arg1])
       a = get_raw_value(@memory[arg2])
@@ -234,7 +250,7 @@ module SynacorChallenge
     end
 
     private def op_or
-      arg1, arg2, arg3 = get_args_pc_values(3)
+      arg1, arg2, arg3 = get_three_args
 
       reg = get_register(@memory[arg1])
       a = get_raw_value(@memory[arg2])
@@ -246,7 +262,7 @@ module SynacorChallenge
     end
 
     private def op_not
-      arg1, arg2 = get_args_pc_values(2)
+      arg1, arg2 = get_two_args
 
       reg = get_register(@memory[arg1])
       value = get_raw_value(@memory[arg2])
@@ -257,7 +273,7 @@ module SynacorChallenge
     end
 
     private def op_rmem
-      arg1, arg2 = get_args_pc_values(2)
+      arg1, arg2 = get_two_args
 
       reg = get_register(@memory[arg1])
       address = get_raw_value(@memory[arg2])
@@ -270,7 +286,7 @@ module SynacorChallenge
     end
 
     private def op_wmem
-      arg1, arg2 = get_args_pc_values(2)
+      arg1, arg2 = get_two_args
 
       address = get_raw_value(@memory[arg1])
       value = get_raw_value(@memory[arg2])
@@ -281,7 +297,7 @@ module SynacorChallenge
     end
 
     private def op_call
-      arg1, next_pos = get_args_pc_values(2)
+      arg1, next_pos = get_two_args
 
       @stack << next_pos.to_u16
 
@@ -297,7 +313,7 @@ module SynacorChallenge
     end
 
     private def op_out
-      arg1 = get_args_pc_values(1).first
+      arg1 = get_one_arg
 
       value = get_raw_value(@memory[arg1])
 
@@ -307,7 +323,7 @@ module SynacorChallenge
     end
 
     private def op_in
-      arg1 = get_args_pc_values(1).first
+      arg1 = get_one_arg
 
       reg = get_register(@memory[arg1])
 

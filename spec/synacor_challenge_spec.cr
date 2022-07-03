@@ -1,11 +1,11 @@
 require "./spec_helper"
 
-alias LittleEndian          = IO::ByteFormat::LittleEndian
-alias SynacorVM             = SynacorChallenge::SynacorVM
-alias OpCode                = SynacorChallenge::OpCode
-alias HaltException         = SynacorChallenge::HaltException
+alias LittleEndian = IO::ByteFormat::LittleEndian
+alias SynacorVM = SynacorChallenge::SynacorVM
+alias OpCode = SynacorChallenge::OpCode
+alias HaltException = SynacorChallenge::HaltException
 alias InvalidValueException = SynacorChallenge::InvalidValueException
-alias StackEmptyException   = SynacorChallenge::StackEmptyException
+alias StackEmptyException = SynacorChallenge::StackEmptyException
 
 Spectator.describe SynacorVM do
   REGISTERS = SynacorChallenge::REGISTERS
