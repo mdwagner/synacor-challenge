@@ -22,9 +22,5 @@ module SynacorChallenge
     Out
     In
     Noop
-
-    def to_u16
-      self.value.to_u16
-    end
   end
 end

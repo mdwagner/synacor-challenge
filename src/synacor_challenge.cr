@@ -1,401 +1,314 @@
-require "./synacor_challenge/*"
+# binary format
+# each number is stored as a 16-bit little-endian pair (low byte, high byte)
+# numbers 0..32767 mean a literal value
+# numbers 32768..32775 instead mean registers 0..7
+# numbers 32776..65535 are invalid
+# programs are loaded into memory starting at address 0
+# address 0 is the first 16-bit value, address 1 is the second 16-bit value, etc
+class Synacor
+  enum OpCode : UInt16
+    Halt
+    Set
+    Push
+    Pop
+    Eq
+    Gt
+    Jmp
+    Jt
+    Jf
+    Add
+    Mult
+    Mod
+    And
+    Or
+    Not
+    Rmem
+    Wmem
+    Call
+    Ret
+    Out
+    In
+    Noop
+  end
 
-module SynacorChallenge
-  # binary format
-  # each number is stored as a 16-bit little-endian pair (low byte, high byte)
-  # numbers 0..32767 mean a literal value
-  # numbers 32768..32775 instead mean registers 0..7
-  # numbers 32776..65535 are invalid
-  # programs are loaded into memory starting at address 0
-  # address 0 is the first 16-bit value, address 1 is the second 16-bit value, etc
-  class SynacorVM
-    include VM
+  class HaltError < Exception
+  end
 
-    # memory with 15-bit address space storing 16-bit values
-    getter memory : Array(UInt16) = Array(UInt16).new(2 ** 15)
+  class InvalidValueError < Exception
+  end
 
-    # eight registers
-    getter registers : StaticArray(UInt16, 8) = StaticArray(UInt16, 8).new(0)
+  class StackEmptyError < Exception
+  end
 
-    # unbounded stack which holds individual 16-bit values
-    getter stack : Array(UInt16) = Array(UInt16).new
+  MAX_VALUE     = (2 ** 15).to_u16
+  INVALID_VALUE = MAX_VALUE + 8
+  REGISTERS     = MAX_VALUE...INVALID_VALUE
 
-    # program counter
-    @pc = 0
+  # memory with 15-bit address space storing 16-bit values
+  @memory : StaticArray(UInt16, 32_768)
 
-    property input_buffer = Deque(Char).new
+  # eight registers
+  @registers : StaticArray(UInt16, 8)
 
-    property stdin : IO = STDIN
+  # unbounded stack which holds individual 16-bit values
+  @stack = Deque(UInt16).new
 
-    property stdout : IO = STDOUT
+  # program counter
+  @pc = 0
 
-    property stderr : IO = STDERR
+  @values = [] of UInt16
 
-    def initialize(io : IO)
+  def initialize(program_bin_path : String)
+    @memory = uninitialized StaticArray(UInt16, 32_768)
+    @registers = uninitialized StaticArray(UInt16, 8)
+
+    File.open(program_bin_path, mode: "rb") do |f|
       slice = Bytes.new(2)
-      while (bytes_read = io.read(slice)) != 0
-        break if bytes_read != 2
-        @memory << IO::ByteFormat::LittleEndian.decode(UInt16, slice)
+      index = 0
+      while f.read_fully?(slice)
+        @memory[index] = IO::ByteFormat::LittleEndian.decode(UInt16, slice)
+        index += 1
       end
-    end
-
-    def main : Nil
-      @pc = 0
-      while @pc < @memory.size
-        if opcode = OpCode.from_value?(@memory[@pc])
-          execute_opcode(opcode)
-        else
-          @pc += 1
-        end
-      end
-    end
-
-    def get_raw_value(value : UInt16) : UInt16
-      if value >= INVALID_VALUE
-        raise InvalidValueException.new
-      elsif REGISTERS.includes?(value)
-        @registers[value % MAX_VALUE]
-      else
-        value
-      end
-    end
-
-    def get_register(value : UInt16) : Int32
-      if REGISTERS.includes?(value)
-        (value % MAX_VALUE).to_i32
-      else
-        raise InvalidValueException.new
-      end
-    end
-
-    private def get_args_pc_values(arg_count : Int32)
-      args = [] of Int32
-      arg_count.times do |n|
-        args << @pc + (n + 1)
-      end
-      args
-    end
-
-    private def get_one_arg
-      Tuple(Int32).from(get_args_pc_values(1)).first
-    end
-
-    private def get_two_args
-      Tuple(Int32, Int32).from(get_args_pc_values(2))
-    end
-
-    private def get_three_args
-      Tuple(Int32, Int32, Int32).from(get_args_pc_values(3))
-    end
-
-    private def get_four_args
-      Tuple(Int32, Int32, Int32, Int32).from(get_args_pc_values(4))
-    end
-
-    private def execute_opcode(opcode : OpCode)
-      {% begin %}
-        case opcode
-      {% for op_name in OpCode.constants.map(&.downcase.underscore) %}
-        in .{{op_name.id}}?
-          op_{{op_name.id}}
-      {% end %}
-        end
-      {% end %}
-    end
-
-    private def op_halt
-      raise HaltException.new
-    end
-
-    private def op_set
-      arg1, arg2 = get_two_args
-
-      reg = get_register(@memory[arg1])
-      value = get_raw_value(@memory[arg2])
-
-      @registers[reg] = value
-
-      @pc += 3
-    end
-
-    private def op_push
-      arg1 = get_one_arg
-
-      value = get_raw_value(@memory[arg1])
-
-      @stack << value
-
-      @pc += 2
-    end
-
-    private def op_pop
-      if value = @stack.pop?
-        arg1 = get_one_arg
-
-        reg = get_register(@memory[arg1])
-
-        @registers[reg] = value
-      else
-        raise StackEmptyException.new
-      end
-
-      @pc += 2
-    end
-
-    private def op_eq
-      arg1, arg2, arg3 = get_three_args
-
-      reg = get_register(@memory[arg1])
-      a = get_raw_value(@memory[arg2])
-      b = get_raw_value(@memory[arg3])
-
-      if a == b
-        @registers[reg] = 1_u16
-      else
-        @registers[reg] = 0_u16
-      end
-
-      @pc += 4
-    end
-
-    private def op_gt
-      arg1, arg2, arg3 = get_three_args
-
-      reg = get_register(@memory[arg1])
-      a = get_raw_value(@memory[arg2])
-      b = get_raw_value(@memory[arg3])
-
-      if a > b
-        @registers[reg] = 1_u16
-      else
-        @registers[reg] = 0_u16
-      end
-
-      @pc += 4
-    end
-
-    private def op_jmp
-      arg1 = get_one_arg
-
-      @pc = get_raw_value(@memory[arg1]).to_i32
-    end
-
-    private def op_jt
-      arg1, arg2 = get_two_args
-
-      if get_raw_value(@memory[arg1]) != 0_u16
-        @pc = get_raw_value(@memory[arg2]).to_i32
-      else
-        @pc += 3
-      end
-    end
-
-    private def op_jf
-      arg1, arg2 = get_two_args
-
-      if get_raw_value(@memory[arg1]) == 0_u16
-        @pc = get_raw_value(@memory[arg2]).to_i32
-      else
-        @pc += 3
-      end
-    end
-
-    private def op_add
-      arg1, arg2, arg3 = get_three_args
-
-      reg = get_register(@memory[arg1])
-      a = get_raw_value(@memory[arg2])
-      b = get_raw_value(@memory[arg3])
-
-      @registers[reg] = (a + b) % MAX_VALUE
-
-      @pc += 4
-    end
-
-    private def op_mult
-      arg1, arg2, arg3 = get_three_args
-
-      reg = get_register(@memory[arg1])
-      a = get_raw_value(@memory[arg2])
-      b = get_raw_value(@memory[arg3])
-
-      value = (a.to_u64 * b.to_u64) % MAX_VALUE.to_u64
-      @registers[reg] = value.to_u16
-
-      @pc += 4
-    end
-
-    private def op_mod
-      arg1, arg2, arg3 = get_three_args
-
-      reg = get_register(@memory[arg1])
-      a = get_raw_value(@memory[arg2])
-      b = get_raw_value(@memory[arg3])
-
-      @registers[reg] = a % b
-
-      @pc += 4
-    end
-
-    private def op_and
-      arg1, arg2, arg3 = get_three_args
-
-      reg = get_register(@memory[arg1])
-      a = get_raw_value(@memory[arg2])
-      b = get_raw_value(@memory[arg3])
-
-      @registers[reg] = a & b
-
-      @pc += 4
-    end
-
-    private def op_or
-      arg1, arg2, arg3 = get_three_args
-
-      reg = get_register(@memory[arg1])
-      a = get_raw_value(@memory[arg2])
-      b = get_raw_value(@memory[arg3])
-
-      @registers[reg] = a | b
-
-      @pc += 4
-    end
-
-    private def op_not
-      arg1, arg2 = get_two_args
-
-      reg = get_register(@memory[arg1])
-      value = get_raw_value(@memory[arg2])
-
-      @registers[reg] = (MAX_VALUE - 1) - value
-
-      @pc += 3
-    end
-
-    private def op_rmem
-      arg1, arg2 = get_two_args
-
-      reg = get_register(@memory[arg1])
-      address = get_raw_value(@memory[arg2])
-
-      value = @memory[address]
-
-      @registers[reg] = value
-
-      @pc += 3
-    end
-
-    private def op_wmem
-      arg1, arg2 = get_two_args
-
-      address = get_raw_value(@memory[arg1])
-      value = get_raw_value(@memory[arg2])
-
-      @memory[address] = value
-
-      @pc += 3
-    end
-
-    private def op_call
-      arg1, next_pos = get_two_args
-
-      @stack << next_pos.to_u16
-
-      @pc = get_raw_value(@memory[arg1]).to_i32
-    end
-
-    private def op_ret
-      if value = @stack.pop?
-        @pc = value.to_i32
-      else
-        raise HaltException.new
-      end
-    end
-
-    private def op_out
-      arg1 = get_one_arg
-
-      value = get_raw_value(@memory[arg1])
-
-      @stdout << value.chr.to_s
-
-      @pc += 2
-    end
-
-    private def op_in
-      arg1 = get_one_arg
-
-      reg = get_register(@memory[arg1])
-
-      if chr = @input_buffer.shift?
-        @registers[reg] = chr.ord.to_u16
-      else
-        @stdin.gets(chomp: false).try do |input|
-          if input.starts_with?("$debug")
-            # DEBUG MODE
-            # starts "repl" until $exit is called
-            #   $r{0,7} = print value of reg <value>
-            #   $s = print stack
-            #   $m = print last 10 and future 10 memory addresses
-            puts "Started DEBUG Mode"
-            debug = true
-            while debug
-              @stdin.gets.try do |cmd|
-                if cmd == "$exit"
-                  debug = false
-                  break
-                end
-
-                if match = cmd.match(/\$r(\d+)/)
-                  matched_reg = match[1].to_i
-                  unless (0..7).includes?(matched_reg)
-                    puts "Unrecognized command"
-                    next
-                  end
-                  puts "REGISTER #{matched_reg} => #{@registers[matched_reg]}"
-                elsif cmd == "$r"
-                  puts "REGISTERS => #{@registers}"
-                elsif cmd == "$s"
-                  puts "STACK => #{@stack}"
-                elsif cmd == "$m"
-                  puts "MEMORY => #{@memory[(@pc - 10)..(@pc + 10)]}"
-                else
-                  puts "Unrecognized command"
-                end
-              end
-            end
-            puts "Left DEBUG Mode"
-          else
-            @input_buffer.concat input.chars
-            return op_in
-          end
-        end
-        @registers[reg] = '\n'.ord.to_u16
-      end
-
-      @pc += 2
-    end
-
-    private def op_noop
-      @pc += 1
     end
   end
 
-  def self.solve_coin_problem(coin_mapping : Hash(String, Int32)) : Array(String)
-    raise "Too many coins" if coin_mapping.size != 5
+  def load_save(file_path : String) : Nil
+    # TODO
+    {% raise "Not implemented" %}
+  end
 
-    solution = [] of Int32
+  def load_dump(file_path : String) : Nil
+    # TODO
+    {% raise "Not implemented" %}
+  end
 
-    coin_mapping.values.permutations.each do |values|
-      a, b, c, d, e = values
-      if a + b * (c ** 2) + (d ** 3) - e == 399
-        solution = values
-        break
+  # main
+  def start(restart = false) : Nil
+    @pc = 0 if restart
+    while @pc < @memory.size
+      if opcode = OpCode.from_value?(@memory[@pc])
+        execute_opcode(opcode)
+      else
+        @pc += 1
       end
     end
+  rescue HaltError | InvalidValueError | StackEmptyError
+    exit 1
+  end
 
-    raise "No solution found" if solution.empty?
+  def get(count) : Nil
+    @values.clear
+    count.times do |index|
+      # first value read pc, next values will read n+1
+      @pc += 1 if index != 0
+      @values << @memory[@pc]
+    end
+    @pc += 1 # sets up next value to be read
+  end
 
-    solution.map { |value| coin_mapping.key_for(value) }
+  def fetch_register(value : UInt16) : Int32
+    if REGISTERS.includes?(value)
+      (value % MAX_VALUE).to_i32
+    else
+      raise InvalidValueError.new
+    end
+  end
+
+  def fetch_value(value : UInt16) : UInt16
+    if value >= INVALID_VALUE
+      raise InvalidValueError.new
+    elsif REGISTERS.includes?(value)
+      @registers[value % MAX_VALUE]
+    else
+      value
+    end
+  end
+
+  def execute_opcode(opcode : OpCode)
+    @pc += 1
+    {% begin %}
+      case opcode
+    {% for op_name in OpCode.constants.map(&.underscore) %}
+      in .{{op_name.id}}?
+        op_{{op_name.id}}
+    {% end %}
+      end
+    {% end %}
+  end
+
+  private def op_halt
+    raise HaltError.new
+  end
+
+  private def op_set
+    get(2)
+    reg = fetch_register(@values[0])
+    value = fetch_value(@values[1])
+    @registers[reg] = value
+  end
+
+  private def op_push
+    get(1)
+    value = fetch_value(@values[0])
+    @stack << value
+  end
+
+  private def op_pop
+    if value = @stack.pop?
+      values = get(1)
+      reg = fetch_register(@values[0])
+      @registers[reg] = value
+    else
+      raise StackEmptyError.new
+    end
+  end
+
+  private def op_eq
+    get(3)
+    reg = fetch_register(@values[0])
+    a = fetch_value(@values[1])
+    b = fetch_value(@values[2])
+    @registers[reg] = (a == b) ? 1_u16 : 0_u16
+  end
+
+  private def op_gt
+    get(3)
+    reg = fetch_register(@values[0])
+    a = fetch_value(@values[1])
+    b = fetch_value(@values[2])
+    @registers[reg] = (a > b) ? 1_u16 : 0_u16
+  end
+
+  private def op_jmp
+    get(1)
+    @pc = fetch_value(@values[0]).to_i32
+  end
+
+  private def op_jt
+    get(2)
+    a = fetch_value(@values[0])
+    b = fetch_value(@values[1])
+    if a != 0_u16
+      @pc = b.to_i32
+    end
+  end
+
+  private def op_jf
+    get(2)
+    a = fetch_value(@values[0])
+    b = fetch_value(@values[1])
+    if a == 0_u16
+      @pc = b.to_i32
+    end
+  end
+
+  private def op_add
+    get(3)
+    reg = fetch_register(@values[0])
+    a = fetch_value(@values[1])
+    b = fetch_value(@values[2])
+    @registers[reg] = (a + b) % MAX_VALUE
+  end
+
+  private def op_mult
+    get(3)
+    reg = fetch_register(@values[0])
+    a = fetch_value(@values[1])
+    b = fetch_value(@values[2])
+    value = (a.to_u64 * b.to_u64) % MAX_VALUE.to_u64
+    @registers[reg] = value.to_u16
+  end
+
+  private def op_mod
+    get(3)
+    reg = fetch_register(@values[0])
+    a = fetch_value(@values[1])
+    b = fetch_value(@values[2])
+    @registers[reg] = a % b
+  end
+
+  private def op_and
+    get(3)
+    reg = fetch_register(@values[0])
+    a = fetch_value(@values[1])
+    b = fetch_value(@values[2])
+    @registers[reg] = a & b
+  end
+
+  private def op_or
+    get(3)
+    reg = fetch_register(@values[0])
+    a = fetch_value(@values[1])
+    b = fetch_value(@values[2])
+    @registers[reg] = a | b
+  end
+
+  private def op_not
+    get(2)
+    reg = fetch_register(@values[0])
+    value = fetch_value(@values[1])
+    @registers[reg] = (MAX_VALUE - 1) - value
+  end
+
+  private def op_rmem
+    get(2)
+    reg = fetch_register(@values[0])
+    address = fetch_value(@values[1])
+    value = @memory[address]
+    @registers[reg] = value
+  end
+
+  private def op_wmem
+    get(2)
+    address = fetch_value(@values[0])
+    value = fetch_value(@values[1])
+    @memory[address] = value
+  end
+
+  private def op_call
+    get(1)
+    next_op = @pc
+    @stack << next_op.to_u16
+    a = fetch_value(@values[0])
+    @pc = a.to_i32
+  end
+
+  private def op_ret
+    if value = @stack.pop?
+      @pc = value.to_i32
+    else
+      raise HaltError.new
+    end
+  end
+
+  private def op_out
+    get(1)
+    value = fetch_value(@values[0])
+    print value.chr
+  end
+
+  private def op_in
+    get(1)
+    reg = fetch_register(@values[0])
+    gets(limit: 1, chomp: false).try do |input|
+      @registers[reg] = input.codepoint_at(0).to_u16
+    end
+  end
+
+  private def op_noop
   end
 end
+
+## Program
+# - Start normally
+# - Load Save file (interpreted commands)
+# - Load Program dump (like Load Save file, but runs raw instructions)
+#
+# Usage: synacor_challenge [options] [program binary]
+# Options:
+#   --load-save FILE     Load Save file
+#   --load-dump FILE     Load Program dump
+##
+
+synacor = Synacor.new("#{__DIR__}/../instructions/challenge.bin")
+synacor.start
