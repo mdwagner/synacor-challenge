@@ -58,6 +58,8 @@ class Synacor
 
   @values = [] of UInt16
 
+  @buffer = Deque(Char).new
+
   property stdout : IO = STDOUT
   property stdin : IO = STDIN
 
@@ -80,13 +82,11 @@ class Synacor
   end
 
   def load_save(path : String) : Nil
-    # TODO
-    {% raise "Not implemented" %}
-  end
-
-  def load_dump(path : String) : Nil
-    # TODO
-    {% raise "Not implemented" %}
+    save_file = File.read(path).chars
+    unless save_file.last(1).includes?('\n')
+      save_file << '\n'
+    end
+    @buffer += Deque(Char).new(save_file)
   end
 
   def main(restart = false) : Nil
@@ -296,25 +296,48 @@ class Synacor
   private def op_in
     get(1)
     reg = fetch_register(@values[0])
-    stdin.gets(limit: 1, chomp: false).try do |input|
-      @registers[reg] = input.codepoint_at(0).to_u16
-    end
+
+    input_char = if chr = @buffer.shift?
+                   chr
+                 elsif input = stdin.gets(limit: 1, chomp: false)
+                   input.char_at(0)
+                 else
+                   '\n'
+                 end
+
+    @registers[reg] = input_char.ord.to_u16
   end
 
   private def op_noop
   end
+
+  def self.solve_coin_problem
+    coin_mapping = {
+      "red"      => 2,
+      "blue"     => 9,
+      "shiny"    => 5,
+      "concave"  => 7,
+      "corroded" => 3,
+    }
+    coin_mapping.values.permutations.each do |coin_values|
+      a, b, c, d, e = coin_values
+      if a + b * (c ** 2) + (d ** 3) - e == 399
+        return coin_values.map { |value| coin_mapping.key_for(value) }
+      end
+    end
+  end
 end
 
-## Program
+# # Program
 # - Start normally
 # - Load Save file (interpreted commands)
-# - Load Program dump (like Load Save file, but runs raw instructions)
 #
 # Usage: synacor_challenge [options] [program binary]
 # Options:
 #   --load-save FILE     Load Save file
-#   --load-dump FILE     Load Program dump
 ##
 
 synacor = Synacor.from_file("#{__DIR__}/../instructions/challenge.bin")
+synacor.load_save("#{__DIR__}/../instructions/save1.txt")
+synacor.load_save("#{__DIR__}/../instructions/save2.txt")
 synacor.main
