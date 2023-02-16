@@ -58,32 +58,38 @@ class Synacor
 
   @values = [] of UInt16
 
-  def initialize(program_bin_path : String)
-    @memory = uninitialized StaticArray(UInt16, 32_768)
-    @registers = uninitialized StaticArray(UInt16, 8)
+  property stdout : IO = STDOUT
+  property stdin : IO = STDIN
 
-    File.open(program_bin_path, mode: "rb") do |f|
-      slice = Bytes.new(2)
-      index = 0
-      while f.read_fully?(slice)
-        @memory[index] = IO::ByteFormat::LittleEndian.decode(UInt16, slice)
-        index += 1
-      end
+  def self.from_file(path : String)
+    File.open(path, mode: "rb") do |f|
+      new(f)
     end
   end
 
-  def load_save(file_path : String) : Nil
+  def initialize(io : IO)
+    @memory = uninitialized StaticArray(UInt16, 32_768)
+    @registers = uninitialized StaticArray(UInt16, 8)
+
+    slice = Bytes.new(2)
+    index = 0
+    while io.read_fully?(slice)
+      @memory[index] = IO::ByteFormat::LittleEndian.decode(UInt16, slice)
+      index += 1
+    end
+  end
+
+  def load_save(path : String) : Nil
     # TODO
     {% raise "Not implemented" %}
   end
 
-  def load_dump(file_path : String) : Nil
+  def load_dump(path : String) : Nil
     # TODO
     {% raise "Not implemented" %}
   end
 
-  # main
-  def start(restart = false) : Nil
+  def main(restart = false) : Nil
     @pc = 0 if restart
     while @pc < @memory.size
       if opcode = OpCode.from_value?(@memory[@pc])
@@ -284,13 +290,13 @@ class Synacor
   private def op_out
     get(1)
     value = fetch_value(@values[0])
-    print value.chr
+    stdout.print value.chr
   end
 
   private def op_in
     get(1)
     reg = fetch_register(@values[0])
-    gets(limit: 1, chomp: false).try do |input|
+    stdin.gets(limit: 1, chomp: false).try do |input|
       @registers[reg] = input.codepoint_at(0).to_u16
     end
   end
@@ -310,5 +316,5 @@ end
 #   --load-dump FILE     Load Program dump
 ##
 
-synacor = Synacor.new("#{__DIR__}/../instructions/challenge.bin")
-synacor.start
+synacor = Synacor.from_file("#{__DIR__}/../instructions/challenge.bin")
+synacor.main

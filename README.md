@@ -2,13 +2,12 @@
 
 ## Usage
 
+### Build
 ```sh
-$ shards build synacor_program --release
-$ ./bin/synacor_program
+shards build synacor_program --release
 ```
 
-## Development
-
+### Run
 ```sh
-$ crystal run program/run.cr
+./bin/synacor_program
 ```

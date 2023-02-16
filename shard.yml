@@ -7,16 +7,7 @@ authors:
 targets:
   synacor_challenge:
     main: src/synacor_challenge.cr
-  synacor_program:
-    main: program/run.cr
-  synacor:
-    main: src/synacor_challenge.cr
 
-crystal: 1.4.1
+crystal: 1.7.2
 
 license: MIT
-
-development_dependencies:
-  spectator:
-    gitlab: arctic-fox/spectator
-    version: ~> 0.10.5
