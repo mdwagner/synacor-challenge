@@ -60,6 +60,8 @@ class Synacor
 
   @buffer = Deque(Char).new
 
+  @buffer_str = [] of Char
+
   property stdout : IO = STDOUT
   property stdin : IO = STDIN
 
@@ -293,14 +295,33 @@ class Synacor
     stdout.print value.chr
   end
 
+  # To prevent duplicate output
+  @reading = false
+
   private def op_in
     get(1)
     reg = fetch_register(@values[0])
 
     input_char = if chr = @buffer.shift?
+                   if chr == '\n'
+                     stdout.print @buffer_str.join + "\n" unless @reading
+                     @buffer_str.clear
+                     @reading = false
+                   else
+                     @buffer_str << chr
+                   end
                    chr
-                 elsif input = stdin.gets(limit: 1, chomp: false)
-                   input.char_at(0)
+                 elsif line = stdin.gets(chomp: false)
+                   if line.starts_with?("$debug")
+                     debugging_loop
+                     '\n'
+                   else
+                     @reading = true
+                     chr, *chars = line.chars
+                     @buffer += Deque(Char).new(chars)
+                     @buffer_str << chr
+                     chr
+                   end
                  else
                    '\n'
                  end
@@ -309,6 +330,54 @@ class Synacor
   end
 
   private def op_noop
+  end
+
+  def debugging_loop : Nil
+    stdout.puts "DEBUG MODE [START]"
+    debugging_help
+
+    debug = true
+    while debug
+      stdout.puts
+      stdout.print "# "
+
+      stdin.gets.try do |input|
+        case input
+        when "$exit"
+          debug = false
+          break
+        when "registers", "reg"
+          @registers.each_with_index do |r, i|
+            stdout.puts "#{i}: #{r}"
+          end
+        when "stack", "stk"
+          @stack.each_with_index do |r, i|
+            stdout.puts "#{i}: #{r}"
+          end
+        when "memory", "mem"
+          range = (@pc - 15)..(@pc + 15)
+          range.each do |pc|
+            prefix = pc == @pc ? ">" : ""
+            stdout.puts "#{prefix}[#{pc}]: #{@memory[pc]}"
+          end
+        when "help", "h"
+          debugging_help
+        else
+          stdout.puts "Command not found"
+        end
+      end
+    end
+
+    stdout.puts "DEBUG MODE [END]"
+  end
+
+  def debugging_help
+    stdout.puts "Choices:"
+    stdout.puts "  $exit            Exit Debug Mode"
+    stdout.puts "  registers, reg   View Registers"
+    stdout.puts "  stack, stk       View Stack"
+    stdout.puts "  memory, mem      View Memory (+/- 15 addresses)"
+    stdout.puts "  help, h          Print this help"
   end
 
   def self.solve_coin_problem
