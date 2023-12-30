@@ -1,2 +1,14 @@
 version: 2.0
-shards: {}
+shards:
+  athena-clock:
+    git: https://github.com/athena-framework/clock.git
+    version: 0.1.1
+
+  athena-console:
+    git: https://github.com/athena-framework/console.git
+    version: 0.3.4
+
+  reply:
+    git: https://github.com/i3oris/reply.git
+    version: 0.3.1
+

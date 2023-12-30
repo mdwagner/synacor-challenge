@@ -1,5 +1,7 @@
 name: synacor_challenge
 version: 0.1.0
+crystal: ~> 1.10.1
+license: MIT
 
 authors:
   - Michael Wagner <mdwranger@gmail.com>
@@ -8,6 +10,9 @@ targets:
   synacor_challenge:
     main: src/synacor_challenge.cr
 
-crystal: 1.7.2
-
-license: MIT
+dependencies:
+  athena-console:
+    github: athena-framework/console
+    version: ~> 0.3.0
+  reply:
+    github: I3oris/reply
