@@ -1,0 +1,48 @@
+$debug - Enter debug mode
+- "clear": reader.clear_history
+- "reset": reader.reset
+- "exit": leave debug mode
+- "$coin": output solved coin problem to STDOUT
+- "pc": increment PC by 1; log to STDOUT
+- "pc+<value>": increment PC by value; log to STDOUT
+- "pc=<value>": set PC to value; log to STDOUT
+- "$r<1-8>=<value>": set register 1-8 to value; log to STDOUT
+- "s+<value>": push value to stack; log to STDOUT
+- "s-": pop value from stack; log popped value to STDOUT
+- "p": print only next instruction based on current PC
+- "p+<value>": same as p, but will print the next number of instructions
+- "p-<value>": same as p, but will print the previous number of instructions
+- "redir-file": (toggle) redirect STDOUT to append ./output.txt
+- "redir-file!": (toggle) redirect STDOUT to ./output.txt
+- "redir-null": (toggle) redirect STDOUT to nothing
+- "redir-reset": (toggle) redirect STDOUT to STDOUT
+- "n": execute next instruction from current PC and stop
+- "memd": write to ./memory-<ISODateTime>.asm
+- "stkd": write to ./stack-<ISODateTime>.txt (top -> bottom; N -> 1)
+- "reg": print registers to screen
+- "stk": print stack to screen (top -> bottom; N -> 1)
+- "dump": dump everything to ./dump-<ISODateTime>.txt
+  - Order:
+    1. Registers
+    2. Stack
+    3. PC (program counter)
+    4. Memory
+- "watch": (toggle) write the following repl commands (except this one) to ./session.txt
+- "i=<op> <arg?> <arg?> <arg?>": execute an opcode directly
+
+mult: 10 a b c
+i=10 32771 2 3456
+
+set: 1 a b
+i=1 a b
+
+push: 2 a
+i=2 5
+
+$patches
+# No hitchhiking self-test
+# @memory[782] = 7_u16
+
+# Brute-force attempt $7
+#@memory[522] = REGISTERS.to_a[0]
+#@registers[7] = 1_u16

@@ -1,7 +1,9 @@
 require "athena-console"
 require "reply"
+require "colorize"
 require "./synacor/exceptions"
 require "./synacor/op_code"
+require "./synacor/vm"
 require "./synacor/debugger"
 require "./synacor/run_command"
 
