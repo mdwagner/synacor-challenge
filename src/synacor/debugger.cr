@@ -38,14 +38,41 @@ module Synacor
           nexti
         when "o", "stepo"
           stepo
-        when "io"
+        when "sprs" # s + asm + reg + stk
+          stepi
+          print_disassemble
+          print_registers
+          print_stack
+        when "nprs" # n + asm + reg + stk
+          nexti
+          print_disassemble
+          print_registers
+          print_stack
+        when "in"
           print_vm_input
+        when "@in"
+          print_vm_input(true)
         when "p", "print"
           print_vm_output
         when "clear"
           clear_vm_output
         when "c", "continue"
           continue_until_breakpoint
+        when "cp" # c + p
+          continue_until_breakpoint
+          print_vm_output
+        #when "cc" # TODO
+          #custom_main_loop do
+            #if opcode = OpCode.from_value?(self.vm.memory[self.vm.pc])
+              #!(opcode.rmem? && self.vm.value_at(2) == 6069)
+            #else
+              #true
+            #end
+          #end
+        #when "capture" # capture subroutine
+          # each do
+          #   list << disassemble
+          # end
         when "b"
           print_breakpoints
         when "reg"
@@ -55,21 +82,23 @@ module Synacor
         when "$coin"
           print_solved_coin_problem
         else
-          if md = expr.match(/i!(\d+)\s*(.*)/)
-            # i!<op> <...>
+          if md = expr.match(/i!\s(\d+)\s(.*)/)
+            # i! <op> <...>
             interpret_instruction(md)
-          elsif md = expr.match(/b!(\d+)/)
-            # b!<breakpoint>
+          elsif md = expr.match(/b!\s(\d+)/)
+            # b! <breakpoint>
             set_breakpoint(md[1].to_i)
-          elsif md = expr.match(/bd!(\d+)/)
-            # bd!<breakpoint>
+          elsif md = expr.match(/bd!\s(\d+)/)
+            # bd! <breakpoint>
             remove_breakpoint(md[1].to_i)
-          elsif md = expr.match(/asm!(\d+)/)
-            # asm!<pc>
+          elsif md = expr.match(/asm!\s(\d+)/)
+            # asm! <pc>
             print_disassemble(md[1].to_i)
-          elsif md = expr.match(/io!(.*)/)
-            # io!<...>\n
+          elsif md = expr.match(/in!\s(.*)/)
+            # in! <...>
             add_vm_input(md[1])
+          else
+            self.output.puts "expression not found: '#{expr}'"
           end
         end
       end
@@ -97,8 +126,20 @@ module Synacor
       end
     end
 
-    def print_vm_input
-      self.output.puts(self.vm.input.to_s)
+    def print_vm_input(position = false)
+      if position
+        self.output.puts(self.vm.input.pos.to_s)
+        if ((self.vm.input.size - 10)..(self.vm.input.size)).includes?(self.vm.input.pos)
+          bytesize = self.vm.input.size - self.vm.input.pos
+        else
+          bytesize = 10
+        end
+        self.vm.input.read_at(self.vm.input.pos, bytesize) do |io|
+          self.output.puts(io.to_s.inspect)
+        end
+      else
+        self.output.puts(self.vm.input.to_s)
+      end
     end
 
     def print_vm_output
@@ -114,76 +155,57 @@ module Synacor
     end
 
     def print_registers
-      String.build do |str|
-        str << '['
-        str << ' '
-        # register columns
-        self.vm.registers.each_with_index do |_, index|
-          str << sprintf("%05d", REGISTERS[index]).colorize.blue
-          str << ' ' unless index == self.vm.registers.size - 1
-        end
-        str << ' '
-        str << ']'
-        str << '\n'
-        str << '['
-        str << ' '
-        # register index columns
-        self.vm.registers.each_with_index do |_, index|
-          str << sprintf("%5d", index).colorize.blue
-          str << ' ' unless index == self.vm.registers.size - 1
-        end
-        str << ' '
-        str << ']'
-        str << '\n'
-        str << '['
-        str << ' '
-        # register values
-        self.vm.registers.each_with_index do |reg_value, index|
-          str << sprintf("%5d", reg_value)
-          str << ' ' unless index == self.vm.registers.size - 1
-        end
-        str << ' '
-        str << ']'
-      end.tap do |str|
-        self.output.puts(str)
-        self.output.puts ""
+      headers = self.vm.registers.map_with_index do |_, index|
+        sprintf("%05d", REGISTERS[index])
       end
+
+      headers_i = self.vm.registers.map_with_index do |_, index|
+        sprintf("%5d", index)
+      end
+
+      values = self.vm.registers.map do |reg_value|
+        sprintf("%5d", reg_value)
+      end
+
+      rows = [
+        headers_i,
+        ACON::Helper::Table::Separator.new,
+        values,
+      ].flatten
+
+      ACON::Helper::Table.new(self.output)
+        .headers(headers)
+        .rows(rows)
+        .render
     end
 
     def print_stack
-      String.build do |str|
-        str << '['
-        str << ' '
-        # stack index columns
-        self.vm.stack.each_with_index do |value, index|
-          str << sprintf("%5d", index).colorize.blue
-          str << ' ' unless index == self.vm.stack.size - 1
+      if self.vm.stack.size > 0
+        rows = self.vm.stack.map do |value|
+          sprintf("%5d", value)
         end
-        str << ' '
-        str << ']'
-        str << '\n'
-        str << '['
-        str << ' '
-        # stack values
-        self.vm.stack.each_with_index do |value, index|
-          str << sprintf("%5d", value)
-          str << ' ' unless index == self.vm.stack.size - 1
-        end
-        str << ' '
-        str << ']'
-      end.tap do |str|
-        self.output.puts(str)
-        self.output.puts ""
+
+        ACON::Helper::Table.new(self.output)
+          .rows(rows)
+          .vertical
+          .render
+      else
+        self.output.puts "stack empty"
       end
     end
 
     def print_breakpoints
-      if self.breakpoints.empty?
-        self.output.puts("No breakpoints set")
-      else
-        self.breakpoints.each do |value|
-          self.output.puts(value.to_s)
+      if self.breakpoints.size > 0
+        rows = self.breakpoints.map do |value|
+          sprintf("%5d", value)
         end
+
+        ACON::Helper::Table.new(self.output)
+          .rows(rows)
+          .vertical
+          .render
+      else
+        self.output.puts "no breakpoints set"
       end
     end
 
@@ -329,13 +351,12 @@ module Synacor
       custom_main_loop { false }
     end
 
+    # TODO: allow nesting
     def nexti
       if opcode = OpCode.from_value?(self.vm.memory[self.vm.pc])
         if opcode.call?
           breakpoint = self.vm.pc + 2
-          self.breakpoints << breakpoint
-          self.continue_until_breakpoint
-          self.breakpoints.delete(breakpoint)
+          self.continue_until_breakpoint(breakpoint)
         else
           stepi
         end
@@ -353,8 +374,12 @@ module Synacor
       end
     end
 
-    def continue_until_breakpoint
-      custom_main_loop { !self.breakpoints.includes?(self.vm.pc) }
+    def continue_until_breakpoint(breakpoint : Int32? = nil)
+      if b = breakpoint
+        custom_main_loop { self.vm.pc != b }
+      else
+        custom_main_loop { !self.breakpoints.includes?(self.vm.pc) }
+      end
     end
 
     def continue_until_ret
@@ -449,7 +474,7 @@ module Synacor
               self.vm.output.print(buffered_char)
               self.vm.registers[reg] = buffered_char.ord.to_u16
             else
-              self.vm.registers[reg] = '\n'.ord.to_u16
+              break
             end
             self.vm.pc += 2
           in .noop?
