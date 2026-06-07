@@ -20,6 +20,8 @@ module Synacor
 
     property vm_output_io = IO::Memory.new
 
+    property resume_requested = false
+
     def initialize(@vm, @output)
       @vm.output = ACON::Output::IO.new(@vm_output_io)
     end
@@ -29,6 +31,12 @@ module Synacor
       reader.read_loop do |expr|
         case expr
         when "exit", "quit", "q"
+          break
+        when "resume", "go"
+          # Leave the REPL and let the VM run normally from the current PC.
+          # Defer the actual handoff until after read_loop returns so the
+          # reader can restore the terminal from raw mode first.
+          self.resume_requested = true
           break
         when "asm"
           print_disassemble
@@ -81,6 +89,10 @@ module Synacor
           print_stack
         when "$coin"
           print_solved_coin_problem
+        when "$teleporter"
+          print_solved_teleporter
+        when "$fix_teleporter"
+          fix_teleporter
         else
           if md = expr.match(/i!\s(\d+)\s(.*)/)
             # i! <op> <...>
@@ -102,6 +114,18 @@ module Synacor
           end
         end
       end
+
+      resume_program if self.resume_requested
+    end
+
+    # Hand control back to the VM: restore output to the real terminal and run
+    # the normal main loop from the current PC. Remaining buffered input (from
+    # any --load saves) is consumed first, then op_in falls back to STDIN, so
+    # the game continues interactively. HaltError and friends propagate up to
+    # RunCommand#execute, which handles them.
+    def resume_program
+      self.vm.output = self.output
+      self.vm.main_loop
     end
 
     def solve_coin_problem : Array(String)
@@ -124,6 +148,72 @@ module Synacor
       solve_coin_problem.each do |coin|
         self.output.puts("use #{coin} coin")
       end
+    end
+
+    # The teleporter confirmation routine at address 6027 is a parameterized
+    # Ackermann function where register 7 ($7) is the free parameter:
+    #
+    #   f(0, b) = b + 1
+    #   f(a, 0) = f(a - 1, $7)
+    #   f(a, b) = f(a - 1, f(a, b - 1))     (all mod MAX_VALUE)
+    #
+    # The caller at 5483 sets $0=4, $1=1, calls it, and requires f(4, 1) == 6.
+    # We brute-force every candidate for $7, memoizing per-candidate so each
+    # evaluation is cheap.
+    def solve_teleporter : UInt16
+      (1_u16..(MAX_VALUE - 1)).each do |r7|
+        memo = Hash(Tuple(UInt16, UInt16), UInt16).new
+        return r7 if ackermann(4_u16, 1_u16, r7, memo) == 6_u16
+      end
+      raise "no teleporter value found"
+    end
+
+    def ackermann(a : UInt16, b : UInt16, r7 : UInt16, memo) : UInt16
+      if cached = memo[{a, b}]?
+        return cached
+      end
+
+      result =
+        if a == 0_u16
+          (b + 1_u16) % MAX_VALUE
+        elsif b == 0_u16
+          ackermann(a - 1_u16, r7, r7, memo)
+        else
+          inner = ackermann(a, b - 1_u16, r7, memo)
+          ackermann(a - 1_u16, inner, r7, memo)
+        end
+
+      memo[{a, b}] = result
+      result
+    end
+
+    def print_solved_teleporter
+      value = solve_teleporter
+      self.output.puts("register 7 ($7) = #{value}")
+      self.output.puts("i! 1 #{REGISTERS[7]} #{value}")
+    end
+
+    # The value `solve_teleporter` finds for $7. Hardcoded so we can skip the
+    # ~100s brute-force at runtime.
+    TELEPORTER_R7 = 25734_u16
+
+    # Apply the teleporter fix without running the slow check:
+    #   1. Set $7 to the calibrated value (a later routine derives the printed
+    #      code from $7, so this must be the genuine value, not faked).
+    #   2. Patch the confirmation function at 6027 so it returns 6 immediately,
+    #      since the real recursion is far too deep to actually run. The caller
+    #      at 5489 only inspects $0 after the call, so:
+    #        6027: set $0 6   (1, 32768, 6)
+    #        6030: ret        (18)
+    def fix_teleporter
+      self.vm.registers[7] = TELEPORTER_R7
+
+      self.vm.memory[6027] = OpCode::Set.value
+      self.vm.memory[6028] = REGISTERS[0]
+      self.vm.memory[6029] = 6_u16
+      self.vm.memory[6030] = OpCode::Ret.value
+
+      self.output.puts("$7 set to #{TELEPORTER_R7}; confirmation routine at 6027 patched to `set $0 6; ret`")
     end
 
     def print_vm_input(position = false)

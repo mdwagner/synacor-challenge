@@ -1,48 +1,60 @@
-$debug - Enter debug mode
-- "clear": reader.clear_history
-- "reset": reader.reset
-- "exit": leave debug mode
-- "$coin": output solved coin problem to STDOUT
-- "pc": increment PC by 1; log to STDOUT
-- "pc+<value>": increment PC by value; log to STDOUT
-- "pc=<value>": set PC to value; log to STDOUT
-- "$r<1-8>=<value>": set register 1-8 to value; log to STDOUT
-- "s+<value>": push value to stack; log to STDOUT
-- "s-": pop value from stack; log popped value to STDOUT
-- "p": print only next instruction based on current PC
-- "p+<value>": same as p, but will print the next number of instructions
-- "p-<value>": same as p, but will print the previous number of instructions
-- "redir-file": (toggle) redirect STDOUT to append ./output.txt
-- "redir-file!": (toggle) redirect STDOUT to ./output.txt
-- "redir-null": (toggle) redirect STDOUT to nothing
-- "redir-reset": (toggle) redirect STDOUT to STDOUT
-- "n": execute next instruction from current PC and stop
-- "memd": write to ./memory-<ISODateTime>.asm
-- "stkd": write to ./stack-<ISODateTime>.txt (top -> bottom; N -> 1)
-- "reg": print registers to screen
-- "stk": print stack to screen (top -> bottom; N -> 1)
-- "dump": dump everything to ./dump-<ISODateTime>.txt
-  - Order:
-    1. Registers
-    2. Stack
-    3. PC (program counter)
-    4. Memory
-- "watch": (toggle) write the following repl commands (except this one) to ./session.txt
-- "i=<op> <arg?> <arg?> <arg?>": execute an opcode directly
+# Synacor Challenge Debugger (REPL)
 
-mult: 10 a b c
-i=10 32771 2 3456
+Start the debugger with the --debug/-x flag. Optionally preload one or more
+save files (input is fed to the VM before STDIN takes over):
 
-set: 1 a b
-i=1 a b
+  ./bin/synacor_challenge --debug
+  ./bin/synacor_challenge --debug --load instructions/save2.txt
 
-push: 2 a
-i=2 5
+Commands are matched exactly unless shown with arguments (e.g. "b! <addr>").
 
-$patches
-# No hitchhiking self-test
-# @memory[782] = 7_u16
+## Session control
+- "exit" / "quit" / "q": leave the debugger and end the program
+- "resume" / "go": leave the REPL and let the VM run normally from the current
+  PC. Remaining preloaded input is consumed first, then input falls back to
+  STDIN, so the game continues interactively.
 
-# Brute-force attempt $7
-#@memory[522] = REGISTERS.to_a[0]
-#@registers[7] = 1_u16
+## Stepping
+- "s" / "stepi": execute the next instruction and stop
+- "n" / "nexti": like stepi, but step OVER a `call` (run until it returns)
+- "o" / "stepo": step OUT — run to the next `ret`, then execute it
+- "sprs": stepi, then print disassembly + registers + stack
+- "nprs": nexti, then print disassembly + registers + stack
+
+## Running
+- "c" / "continue": run until a breakpoint is hit
+- "cp": continue, then print the VM output buffer
+
+## Breakpoints
+- "b": print all breakpoints
+- "b! <addr>": set a breakpoint at memory address <addr>
+- "bd! <addr>": delete the breakpoint at <addr>
+
+## Inspecting state
+- "asm": disassemble the instruction at the current PC
+- "asm! <pc>": disassemble the instruction at address <pc>
+- "reg": print the registers
+- "stk": print the stack (top -> bottom)
+
+## VM input / output
+- "in": print the entire preloaded VM input buffer
+- "@in": print the current input position and the next bytes from it
+- "in! <text>": append <text> + newline to the VM input buffer
+- "p" / "print": print the accumulated VM output buffer
+- "clear": clear the VM output buffer
+
+## Direct execution
+- "i! <op> <arg?> <arg?> <arg?>": execute a single opcode directly.
+  <op> is the numeric opcode; registers are encoded as 32768-32775 ($0-$7).
+  Examples:
+    set $7 = 25734   ->  i! 1 32775 25734   (set: op 1)
+    mult $3 2 3456   ->  i! 10 32771 2 3456 (mult: op 10)
+    push 5           ->  i! 2 5             (push: op 2)
+
+## Puzzle solvers
+- "$coin": print the solved coin-slot ordering ("use <coin> coin" lines)
+- "$teleporter": brute-force register 7 for the teleporter check and print it
+  (the parameterized Ackermann confirmation at 6027; slow, ~100s)
+- "$fix_teleporter": instantly set $7 = 25734 and patch the confirmation
+  routine at 6027 to `set $0 6; ret` so `use teleporter` succeeds without
+  running the (far too deep) real recursion
